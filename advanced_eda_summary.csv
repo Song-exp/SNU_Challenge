@@ -1,0 +1,5 @@
+Metric,Value
+Fine-grained (%),1.3
+Scene Cut (%),98.7
+Subtitle Leakage (%),4.6
+Timestamp Leakage (%),75.2
