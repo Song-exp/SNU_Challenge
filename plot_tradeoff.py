@@ -6,10 +6,11 @@ import matplotlib.pyplot as plt
 # =========================================================================
 resolutions = [224, 336, 448, 560] # 장축 최대 크기 (target_dim)
 
-# 예시/더미 데이터입니다. 실제 실험 결과가 나오면 이 값을 수정하세요!
-speed_sec_per_sample = [0.42, 0.85, 1.49, 2.31] # 1개 샘플당 소요 시간 (초)
-accuracy_em = [11.5, 15.0, 17.0, 17.5] # 검증셋 Exact Match 정확도 (%)
-vram_usage_gb = [2.1, 3.4, 4.27, 5.8] # VRAM 사용량 (GB)
+# 실제 실험 결과 반영
+speed_sec_per_sample = [1.0200, 1.4350, 1.6150, 1.6150] # 1개 샘플당 소요 시간 (초)
+accuracy_em = [17.00, 17.00, 17.00, 16.00] # 검증셋 Exact Match 정확도 (%)
+vram_usage_gb = [2.90, 3.70, 4.27, 4.90] # VRAM 사용량 (GB)
+
 
 print("--- SNU AI Challenge - Resolution Tradeoff Plotter ---")
 for r, s, a, v in zip(resolutions, speed_sec_per_sample, accuracy_em, vram_usage_gb):
