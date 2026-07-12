@@ -1,0 +1,201 @@
+Id,Sentence,Answer,Avg_MSE,Type
+zEvUmy, The person puts a jack under the car and begins unscrewing the tire and taking it off.,"[1, 2, 3, 4]",8764.897,Scene Cut
+oK0FIL," They continue talking, then the host presents the man with a gift.","[4, 3, 2, 1]",746.00586,Fine-grained
+EvW4wZ,A young woman is seen standing in a room and leads into her dancing.,"[1, 2, 4, 3]",620.64355,Fine-grained
+lqp57G, Another man starts shaving the sides of his head.,"[1, 2, 4, 3]",9116.603,Scene Cut
+7qk1QQ,"The camera shifts from a pot to reveal someone cutting green onions, then transitions to a person replacing a paintbrush with an orange cloth, moving it left across the surface as their hands change position.","[3, 4, 1, 2]",5209.2065,Scene Cut
+FGXdAk,"The camera zooms in on the man playing the piano, then shifts to the person singing into the microphone, lowering their head before raising their gaze towards the computer screen.","[4, 2, 3, 1]",6487.0034,Scene Cut
+nc2HVr,"  Next she adds 1 teaspoon of vanilla extract and she mixes everything up, then she adds 1 1/4 cups of all purpose flour along with 1/4 cup of unsweetened cocoa powder and salt.","[3, 2, 4, 1]",7175.5474,Scene Cut
+tHhlDw,"The fabric is raised and aligned along the ceiling by the woman on the ladder, then the camera zooms in as a roller applies textured wallpaper to the ceiling.","[2, 1, 3, 4]",2578.7112,Scene Cut
+6YhyNZ,"A person in a wheelchair adjusts their foot as a small dog approaches, then a cleaning machine moves forward across the tiles, revealing a clean path behind it while the camera tilts down slightly.","[1, 2, 3, 4]",3868.3708,Scene Cut
+LqoNRd,"The athlete lifts the barbell upward, standing straighter as the camera tilts slightly, then a person squats under a barbell as an instructor approaches, adding a resistance band for support.","[1, 4, 2, 3]",7169.52,Scene Cut
+CnXlzM,"The book on the counter moves into the foreground as the camera zooms in, then a woman fills a jar with ingredients, layers them, and secures the lid, completing the process.","[3, 4, 1, 2]",6512.4116,Scene Cut
+SjPtQu, The lady then hops back where she started.,"[2, 4, 3, 1]",1385.4691,Scene Cut
+cQJbE4,"The laser carves the pumpkin's eyes and nose after outlining the mouth, then the pumpkin rotates slightly left as the camera zooms in, revealing more detailed carvings and intricate lines added by the artist.","[1, 2, 3, 4]",5787.6587,Scene Cut
+EKB8hT,"A surfer rides a wave with the camera zooming in slightly, then moves left across the wave, turning the board counter-clockwise as the camera continues to zoom in.","[3, 1, 2, 4]",13063.384,Scene Cut
+L21vTP,"Spectators at a rodeo vanish as ""Triple Threat Feed"" text appears, transitioning to a performer running across a stage, lowering to the floor, and gracefully raising her arm.","[2, 4, 1, 3]",13172.43,Scene Cut
+j45ySg,"The chef moves the small pan with the omelet out of view as the camera zooms out to reveal the kitchen, then shifts focus to a sandwich being prepared, before zooming in on the chef's face.","[1, 2, 3, 4]",8435.892,Scene Cut
+YGnreW,"A group of spectators sits quietly as a performer begins to dance, then moves into a lively routine, showcasing her skills with increasing energy and enthusiasm.","[2, 4, 3, 1]",3083.499,Scene Cut
+zGm2HW,"The athlete prepares to throw and transitions to a screen displaying Mo Saatara's coaching details, followed by a gym scene in Canandaigua that shifts to a black screen with text about video visibility.","[2, 3, 4, 1]",11364.102,Scene Cut
+ObsaX8,"The makeup artist begins to apply makeup on the model's forehead, then moves to her eyes, and finally uses a sponge to blend the product on her face.","[3, 4, 1, 2]",7100.9067,Scene Cut
+lrdixX,"The device is opened and a leash is inserted as the camera zooms in, then hands fold and secure the edge of blue wrapping paper, applying pressure downward.","[4, 2, 1, 3]",7475.321,Scene Cut
+8cKIBL,"The ski lift disappears into the fog as a snowboarder emerges on a sunny slope, descending smoothly, while a skier in red navigates down the slope, passing others and approaching the lift area.","[1, 3, 2, 4]",5074.667,Scene Cut
+2aiXnF, the man then hog ties the cow.,"[4, 3, 1, 2]",356.55142,Fine-grained
+P9nq9k, He drops the lens on the sink and again tries to put the contact into his eye.,"[4, 3, 1, 2]",10882.823,Scene Cut
+mP1qDX,"The person on the lawn mower begins by singing about mowing the lawn, then another person joyfully joins in, followed by a third person expressing excitement while mowing. Finally, the last individual confidently states they are also mowing the lawn.","[4, 3, 2, 1]",4178.906,Scene Cut
+s78e87,"The Mountain High logo fades as a snowboarder with goggles appears, then a skier glides through snow before entering a dense forest area.","[3, 4, 1, 2]",7776.112,Scene Cut
+toZ5tK,"A man walks along traffic while playing bagpipes near a truck, then another man examines a bow, adjusting his grip and leaning closer.","[2, 4, 1, 3]",6057.5273,Scene Cut
+uOW3xp,"The camera zooms in on the woman grabbing a water bottle while pedaling on the exercise bike, then shifts to a person squatting under a barbell as an instructor approaches and a resistance band appears around their waist.","[2, 4, 3, 1]",7599.633,Scene Cut
+FoohjH, The rider accelerates out of a turn on his motorcycle.,"[2, 3, 1, 4]",1507.9733,Scene Cut
+Iebdi9,"The candle's flame disappears, transitioning to a dramatic sky with text; a bright light fades, revealing a ""Thanks for watching!"" message.","[3, 4, 2, 1]",6260.1562,Scene Cut
+6mQK2t,"The kneeling person lifts a barbell while the seated individual observes, then an individual on a blue platform moves from standing to kneeling, raising a resistance band overhead as the camera angle remains unchanged.","[1, 2, 4, 3]",4735.575,Scene Cut
+V8PdcK,"The performance begins with the dancers entering the stage, then they move into synchronized routines using step platforms, gradually lowering and raising their bodies in unison.","[2, 4, 3, 1]",427.12534,Fine-grained
+AZybbY,"The person in the wheelchair begins to put on a sock, then shifts to adjust their foot, while a small dog approaches and moves closer to them.","[3, 1, 4, 2]",636.0651,Fine-grained
+JK4Jzb,A man is seen moving a pool stick and begins hitting balls on a table.,"[4, 2, 1, 3]",11649.227,Scene Cut
+WeyicF,"The trainer approaches as a resistance band is added around the person squatting under the barbell, then the athlete lifts the barbell upward from a squat to a standing position, stabilizing it overhead.","[3, 2, 4, 1]",7169.52,Scene Cut
+bbSIq4,"An athlete jumps with a pole to pass the horizontal bar, then he falls on the foamy mat.","[1, 4, 2, 3]",4004.554,Scene Cut
+RPhbo6,"The marching band recedes toward the building in the background, while the drummers advance from the street's right side to the center with a slight camera zoom in.","[3, 2, 1, 4]",3423.5186,Scene Cut
+FsEtIX,"The shaver moves closer to the man's face and slightly downward, then the razor exits as his hand moves to his chin, with text appearing in the top left corner asking, ""Isn't it about time?""","[1, 4, 3, 2]",3747.5906,Scene Cut
+kkoiAM, Then she takes it off and it's all done.,"[1, 2, 3, 4]",1807.6188,Scene Cut
+k5FCHD,"A person begins to scrape snow off the car's windshield, then moves to clear more snow from the side, and finally raises the scraper to show the progress.","[4, 1, 3, 2]",8211.225,Scene Cut
+EuQ6No,"A chef peels a potato, transitioning to a beige text display, followed by a vacuum cleaner entering from the right, moving left around a coffee table as the camera zooms out.","[4, 2, 3, 1]",23098.297,Scene Cut
+ksgghZ,"Sliced eggs are combined with green onions and mayonnaise in a bowl, as the camera zooms out slightly, then chopped herbs scatter in the pan while cooked meat is added from above, with a slight camera zoom in.","[3, 1, 4, 2]",4413.9067,Scene Cut
+YQK1CL,"The nail art transforms from colorful stripes to a cartoon cat shape with detailed outlines, while a gift is unwrapped, folded neatly, and placed among other presents as the camera zooms out slightly.","[1, 2, 3, 4]",5853.92,Scene Cut
+gKkdPA,"The barbell transitions from angled upright to horizontal on the floor as the athlete kneels, then is raised upright again before resting horizontally with both individuals kneeling beside it.","[1, 3, 4, 2]",392.9554,Fine-grained
+dmAwkm,"She begins to unwrap the gift, then moves to secure the wrapping, and finally adjusts the finishing touches before closing it.","[4, 1, 3, 2]",349.73242,Fine-grained
+6wrKzY," After, the fire starts to growth bigger and bigger while the men put sticks on top.","[2, 1, 3, 4]",5542.803,Scene Cut
+IV8s1J,Two women are seen walking on stage and lead into them performing a belly dancing routine.,"[1, 4, 3, 2]",1685.9629,Scene Cut
+Gfs6vK,A woman is seen walking around a stage carrying a mop.,"[1, 3, 4, 2]",556.1087,Fine-grained
+cCfY2j,"A skater moves through a series of cones, then another skater begins to glide past, followed by a third skater who approaches the cones, and finally, a fourth skater executes a trick.","[4, 2, 1, 3]",646.85156,Fine-grained
+7Q6kHz, One man jumps in the water while others stand around and watch.,"[4, 2, 1, 3]",3877.265,Scene Cut
+j87DYs," The bowl is shown, then the hookah is filled with water by gloves.","[1, 4, 2, 3]",4274.607,Scene Cut
+GLj11Y,"The musicians shift slightly right on stools under red lighting as the camera pans left; then, a musician plays a guitar as the camera zooms in on the strings, focusing intently on his performance.","[4, 2, 1, 3]",3375.3528,Scene Cut
+boC3XX,"A person on a platform begins to trim the hedge, then another person on a tractor moves closer, while two children approach the scene.","[3, 2, 4, 1]",1534.7842,Scene Cut
+QKLQTX,"After,everyone is pictured lying down on the ground as if they are dead but one person begins to sit up but gets hit in the head by the ball and lays back down.","[4, 1, 2, 3]",448.34082,Fine-grained
+1QsybF,"The girl excitedly moves her head left, holding a purple item as the camera tilts slightly right, then the person combs their hair downward, revealing more of their smiling face as they look towards the camera.","[1, 2, 3, 4]",3234.501,Scene Cut
+BIU7l7,"The rectangular material is placed over the marked area and smoothed down, then adhesive is applied as the measuring tape retracts, and a tile cutter is used to cut a tile for positioning.","[1, 2, 3, 4]",5627.164,Scene Cut
+kSE41E,"The man moves closer to the mirror, tilting his head up while shaving, then a towel is raised to a face as the camera zooms in on a hand reaching down to touch the water surface.","[3, 2, 4, 1]",9305.126,Scene Cut
+CQ6jei,"The cooking process begins with sautéing ingredients in a pan, then diced tomatoes are added, followed by simmering the mixture, and finally, cooked spaghetti is mixed in.","[1, 2, 3, 4]",2218.543,Scene Cut
+7mO0dQ,"The skater moves down the ramp and out of frame as the camera tilts downward, followed by the skier descending the slope, briefly disappearing into shadows while the camera pans slightly right.","[1, 2, 3, 4]",14671.2705,Scene Cut
+JEzE7r,"The drummer's hands move swiftly across the congas, intensifying the rhythm, as the scene shifts to a child energetically playing congas, pausing to smile, before ""GO-GO LiL C"" text fills the screen.","[3, 4, 1, 2]",9048.272,Scene Cut
+Z6a35T,"The bull moves away as the camera pans left to reveal spectators by the barriers; then, the piñata shifts right as the woman swings the stick downward, with the camera slightly panning left.","[4, 1, 3, 2]",6440.278,Scene Cut
+n2AEYR,The gymnasts run to and then did cartwheel and thumbling as he go through the end of the mat.,"[1, 3, 2, 4]",5923.961,Scene Cut
+u5Uo0c,"The diver enters the pool, then moves underwater to work on the pool floor, using a tool to secure a cover. He continues to adjust the cover as he works.","[3, 4, 1, 2]",4342.2764,Scene Cut
+QNFdJO,"The person begins by measuring and marking a shape on the floor, then moves to place a new piece of material over the marked area, smoothing it down.","[3, 2, 1, 4]",775.1921,Fine-grained
+kKLjms,  The woman jumps again with the long run up and powerful skip at the beginning.,"[3, 2, 1, 4]",697.14874,Fine-grained
+YK1wDW,  The ball is thrown to the other side of the pool where another goal is met in a white net on the opposite side of the pool.,"[3, 1, 2, 4]",794.47754,Fine-grained
+10kkou,"The small pan exits the frame as the camera zooms out to reveal the chef in the kitchen; then, pasta moves from the pan to a plate as the camera zooms in on the finished dish.","[2, 4, 3, 1]",7396.199,Scene Cut
+066HNQ,"The group paddles energetically in the raft as the camera zooms out, revealing more of the river, then shifts to skiing across the water, moving slightly left with increased splashes as the camera pans right.","[4, 1, 2, 3]",6040.3647,Scene Cut
+ozPut6,"The ball is driven towards the goal as players converge, followed by a transition to contact information for Tom McCartney.","[4, 2, 3, 1]",7222.781,Scene Cut
+IWk3pp,"The blue bowl shifts right as oil is poured in, then the camera zooms out to reveal a person stirring a pot in the kitchen after the pasta package exits the frame.","[3, 4, 2, 1]",5309.78,Scene Cut
+zAXlmz,The men then stand in the field with their paddles and actually get in the raft demonstrating the proper way to row.,"[2, 4, 3, 1]",4815.063,Scene Cut
+JChUY2,"The earlobe is pierced, revealing a new earring as the hand exits the frame, then a hair roller is picked up from the table and applied to the woman's hair, with the camera zooming in on her wrapping hair around it.","[1, 3, 4, 2]",7352.2617,Scene Cut
+SY7inl,"The man lowers the red ribbons as his arm moves down, then gestures with his hand before it lowers out of view, shifting to a more serious expression.","[1, 2, 4, 3]",4596.6523,Scene Cut
+ll4vPF,A man picks up a ball with his racquet and swings it to his opponent over the net.,"[4, 2, 3, 1]",1289.3063,Scene Cut
+yUEWmo,"The person transitions from measuring to cutting material on the floor, ensuring pieces are not smaller than half a tile, while the worker shifts from spreading adhesive to placing and securing a tile with a rubber mallet.","[3, 4, 2, 1]",3019.0764,Scene Cut
+DdhmaA,"The person begins by mixing ingredients in a bowl, then moves to using a mixer, followed by placing cookie dough onto a baking sheet, and finally credits the contributors.","[1, 2, 3, 4]",4267.5713,Scene Cut
+rf31sB,"The left shoe shifts right as laces are adjusted with a camera tilt down, then the camera zooms out from a tattooed arm to reveal a tattooed wrist adorned with a watch.","[3, 1, 4, 2]",7885.8364,Scene Cut
+QyLZqS, A little boy is picking up the leaves and playing in the pile.,"[2, 4, 1, 3]",750.61945,Fine-grained
+7K1jOE, A person punches someone in the head.,"[3, 4, 1, 2]",3854.2253,Scene Cut
+QjfMJM,"The woman approaches the man to arm wrestle, gaining an advantage as the camera zooms in, while a stylist transitions from blow-drying to using a comb to guide a trim along the hair.","[2, 1, 4, 3]",6451.9985,Scene Cut
+dpz6xr, The person begins to run down the track while still holding the pole.,"[1, 2, 3, 4]",3304.2893,Scene Cut
+YDWjfs," He shows how to trim the hedges neatly, going down them a little at a time.","[4, 3, 2, 1]",734.9753,Fine-grained
+MsSbSv,"The raft moves downstream with passengers seated, then approaches a rocky area while a guide gestures, and finally, the group waves as they navigate away from the rocks.","[1, 2, 4, 3]",4580.554,Scene Cut
+GiIoJt,"The riders move through the water, nearing the camera with a slight zoom, then transition from the stable area into the forest, receding into the distance as dust rises behind them.","[4, 2, 3, 1]",8299.562,Scene Cut
+QGJ1Ng,"As the subject smiles during hair styling, a woman playfully reveals a jar labeled ""DIRT"" after moving her hand away.","[4, 3, 1, 2]",4561.229,Scene Cut
+wwMtaz,"As the dog enters from the right and the camera pans left towards the shed, a woman grooms another dog, moving the brush from its back to its neck while leaning forward.","[2, 1, 4, 3]",2963.6936,Scene Cut
+jgNpHU,"The camera zooms in on the woman in green as she becomes the focus, then shifts to a woman in red gesturing animatedly before her hands lower and the man raises his hand in response.","[3, 1, 2, 4]",5196.1177,Scene Cut
+MbIpbe, The boat's sail dips into the water.,"[4, 3, 1, 2]",1511.9342,Scene Cut
+R7A3S7,"The person in the wheelchair begins to put on a sock, then interacts with the dog that approaches, and finally adjusts their position while the dog remains nearby.","[2, 1, 4, 3]",413.98276,Fine-grained
+LM5A5G,A young man appears out of the corner doing a flip on a large stage and clapping to the audience.,"[3, 1, 4, 2]",9482.293,Scene Cut
+gNF434,"The cheerleaders begin their routine with a formation, then transition into stunts, followed by synchronized movements, and finally conclude with a dramatic lift, showcasing their skills throughout.","[3, 2, 1, 4]",3807.1062,Scene Cut
+ALLpX1,"The man begins to explain while gesturing, then moves to adjust the bike's handlebars, continuing to work on them before finally addressing the camera again with a smile.","[3, 1, 2, 4]",576.4131,Fine-grained
+BXQzM9,A man and a dog is out in a field and the dog holds the frisbee between his legs and the dog jumps over the person's back and fetches the frisbee.,"[2, 4, 1, 3]",5858.09,Scene Cut
+dwu8Ff, We see men snowboarding over obstacles and ramps on the ski slope.,"[1, 2, 3, 4]",5803.9727,Scene Cut
+fRQ40i,A young boy is pushing a lawn mower forward and away from the camera on a very large yard of green grass.,"[3, 4, 1, 2]",754.8542,Fine-grained
+jOilDx,A shirtless guy enters a bathroom and yawns.,"[1, 3, 2, 4]",355.2119,Fine-grained
+U6f3cQ, The hunter shoots the animal with a bow and it dies slowly.,"[1, 2, 4, 3]",4896.0034,Scene Cut
+t5JYkg,  They quickly race down the swim lanes.,"[2, 3, 4, 1]",3076.3855,Scene Cut
+o0XMLp,"The person bends down to pick up an object, then stands and walks away, moving further down the beach.","[2, 3, 4, 1]",208.63704,Fine-grained
+ZcBO07,"The person bends down to catch a fish, then raises it triumphantly while smiling, showcasing their catch against the snowy backdrop.","[1, 2, 3, 4]",300.31284,Fine-grained
+T947XU,"The swimmer pushes off from the pool's edge and swims away from the camera, transitioning to water polo players moving towards the goal, culminating in a dramatic title screen with ""MATT VS.""","[2, 3, 1, 4]",10388.105,Scene Cut
+BWVyfP,"The astronaut begins to move towards the wall, then raises her hand to interact with the equipment, while another astronaut is seen in the background. She continues to adjust her position as she works.","[4, 1, 2, 3]",384.11362,Fine-grained
+GbUtC4,"The man stands up from the chair, adjusts his posture, then moves away while applying sunscreen, with the camera tilting down slightly.","[2, 3, 1, 4]",762.43945,Fine-grained
+y3LhGU,"The woman spins to reveal her new hairstyle, transitioning to a scene where a brush moves away as a feeding container is brought to the horse's mouth.","[4, 3, 2, 1]",7543.486,Scene Cut
+wMPU8H, The woman brushes and parts her hair ad begins braiding the hair and pinning it in several locations.,"[1, 4, 2, 3]",4111.2134,Scene Cut
+ZN3iPd,"The mechanic's hand moves away, revealing the bike chain and pedal as the camera zooms out; then, a person points to tire markings, opens a box, holds up a new tube, and positions the wheel while the camera zooms in slightly.","[3, 1, 2, 4]",7213.15,Scene Cut
+AlALQE, He fills a cup with ice and adds all the ingredients into the cup.,"[4, 2, 3, 1]",3287.386,Scene Cut
+jpHjLU, The surfer maintains his balance as he surfs and goes beneath a second wave.,"[1, 2, 3, 4]",651.8721,Fine-grained
+DA9gTo,"A hand moves off-screen as a woman walks left, and then hair is pulled from the back to the side, being braided as the camera shifts left.","[4, 2, 1, 3]",16759.62,Scene Cut
+zzFICt,"The young man turns to face the camera, holding the broom upright, then the scene shifts to a man smiling while holding a kite string as the colorful kite exits the frame.","[1, 2, 3, 4]",6389.233,Scene Cut
+7LGElq,"The performer balances on one leg with a playful lean, then the scene shifts to dancers embracing and dipping into a close-up kiss.","[1, 2, 3, 4]",1815.9951,Scene Cut
+gc53pF,"A person applies polish to a shoe with a cloth while another observes, then the camera tilts upwards to reveal clothes hanging on a line after being washed.","[4, 1, 2, 3]",7728.612,Scene Cut
+861zh2, We see the man place a shingle in the empty spot where he removed one.,"[3, 1, 4, 2]",441.2643,Fine-grained
+SCSkUL,"As the camera pans left, people slide down the snowy slope, while a snowboarder glides toward a snowmobile pulling a sled, captured by a downward tilt.","[1, 2, 3, 4]",5486.127,Scene Cut
+4nf6ib,A dog appears on the couch and suddenly a person sits on the machine and turns it on.,"[1, 3, 2, 4]",7687.9375,Scene Cut
+ChysVq,"A person sets up a camera in the snow as a skier descends a slope, then another skier glides across snow, transitions to a structure, jumps over a ramp, and performs a trick at night.","[2, 1, 4, 3]",11596.544,Scene Cut
+gDMbjS,"The skier descends the slope, passing others and approaching a lift station, then glides through trees onto a wide slope, carving smoothly along a narrower trail.","[1, 2, 3, 4]",3206.3245,Scene Cut
+Qmzywy,"The skier in red descends the slope, passing others and nearing the lift area, then continues downhill onto a wide, snowy slope, moving toward a tree-lined area with a chairlift overhead.","[2, 3, 1, 4]",6358.2573,Scene Cut
+ACYdWG, She starts clipping the cats nails with a tool.,"[3, 1, 4, 2]",6489.9785,Scene Cut
+nOC2ia,"The camera zooms in on a mechanic's hands positioning a bike grip, then pans to a close-up of a wheel being tightened, and finally shows a rider adjusting the handlebars.","[3, 1, 2, 4]",9276.991,Scene Cut
+GErduG,"The text about ordering a Havanese video remains unchanged, then transitions from a red title screen on fitting a chain to a person standing in front of a tool-filled wall.","[2, 1, 4, 3]",609.6136,Fine-grained
+I9sHqI,The man then shows the screen on the rowing machine.,"[1, 2, 4, 3]",3506.5706,Scene Cut
+lvCfDg,  They get in formation then start marching down the street.,"[2, 3, 1, 4]",8958.1875,Scene Cut
+b6Xe62,"  The hand, finally, lets the red cloth fall into the water as the hand holds itself up to the cat's nose.","[4, 1, 2, 3]",2962.5032,Scene Cut
+0E2fFq,"The drummer looks right while resuming drumming, and then a person in a yellow shirt fluidly strikes one drum downward as the other hand lifts slightly.","[4, 2, 1, 3]",1999.7963,Scene Cut
+AQJmx5, A man takes off his goggles and waves at the camera.,"[2, 4, 1, 3]",103.086586,Fine-grained
+eCfTab,"The athlete begins to lift the barbell overhead, then raises it higher while stabilizing her position, and finally holds it aloft with a strong stance.","[1, 2, 3, 4]",295.75455,Fine-grained
+5UllUx,"Spectators cheer near the throwing circle as the camera zooms into a coaching logo, then shifts to a person kneeling and extending a resistance band horizontally, raising their arm from bent to extended.","[4, 2, 1, 3]",14392.313,Scene Cut
+lWLjQ7,"The drummer starts playing as the camera pans left to reveal more band members; then, an accordion player continues as another man enters the room, holding a cup and standing closer.","[2, 1, 4, 3]",7256.742,Scene Cut
+gVqh1h, The man continues scrubbing as the other pours water and ends with the dog running away.,"[1, 4, 2, 3]",5734.401,Scene Cut
+EnnNdF,"After several hits,one man decides to kick the ball over the net and another man takes off running from the other side and tackles him in the dirt.","[1, 2, 3, 4]",752.92804,Fine-grained
+8YQyd3,"A bowl moves left as cookie dough is placed on a baking sheet, followed by foil-wrapped food being placed into a bag and handed to a man outside a car window.","[1, 2, 3, 4]",10308.561,Scene Cut
+pVz6dn,"The person begins by holding a piece of wood, then moves to sharpen it on a stone, and finally demonstrates the sharpening technique with a tool.","[1, 3, 2, 4]",5608.0806,Scene Cut
+OFxKwG,"The horse shifts right as the rider moves back, then a person jumps off a tall structure, descending through the air toward a soft surface.","[1, 2, 3, 4]",4590.6216,Scene Cut
+BiyrZI,"Surfers are seen in the water, then one rides a wave, followed by a wave crashing near the rocks, and finally, a surfer walks away from the water.","[1, 2, 3, 4]",6922.592,Scene Cut
+B75C9S,  A bowling ball hits the camera.,"[1, 4, 2, 3]",9254.922,Scene Cut
+NibZDi,"The athlete exits the frame as the camera shifts focus to a competitor leaping into the sand pit, then cuts to a different athlete landing near markers, and finally zooms in on the scoreboard displaying the results.","[4, 1, 2, 3]",5489.947,Scene Cut
+Rv7rdN,"The dealer begins to deal cards, then lowers his hands to show the players' hands, and finally raises his hands to indicate the next round.","[1, 3, 2, 4]",235.89746,Fine-grained
+LKMOkI,"The person begins by cleaning the shoes, then moves to lace them up, followed by showcasing the polished brown shoes, and finally presents a darker pair.","[4, 3, 2, 1]",8303.763,Scene Cut
+ECm9uh,"The person begins to clear snow from the car's rear, then moves to the side, and finally raises the snow brush to clear the back window.","[1, 4, 3, 2]",8642.109,Scene Cut
+ZGZv0D,"The video transitions from a warning about jack safety to advice on using a torque wrench, then a vacuum enters from the left as the camera zooms out, revealing a woman vacuuming around a coffee table in a living room.","[2, 4, 3, 1]",5865.746,Scene Cut
+dTRQRH,"The man curls into a crunch, lifting his legs and torso upward, while the comb moves slightly left, revealing the person's face as they begin to smile.","[4, 2, 3, 1]",6451.646,Scene Cut
+Ub3HTe,"The installation begins with cleaning the wall, then notes that the panels will overlap by one inch, followed by cutting the wallpaper at the bottom.","[2, 3, 1, 4]",12877.702,Scene Cut
+OOp2nu,The latch is let down and they all take off into the dirt and start to race in the dirt.,"[1, 2, 3, 4]",2490.5427,Scene Cut
+HCR1Hy,"The person begins by unwrapping a shoe, then cleans it with a toothbrush, applies a product, and finally prepares to wrap it for protection.","[3, 2, 4, 1]",5984.3813,Scene Cut
+5SsRZM,"Skaters lean forward and accelerate down a road toward a curve, then a skateboarder in yellow rides alongside a truck and exits as another rider approaches from behind, moving to the center.","[3, 2, 4, 1]",6490.2754,Scene Cut
+p5M7XR, The young girl and the woman hold hands and swim to the surface of the pool.,"[3, 1, 2, 4]",729.3913,Fine-grained
+StK64H,"A skier begins to navigate the slope, then shifts their weight and turns, but ultimately loses balance and falls into the snow.","[3, 1, 2, 4]",633.22723,Fine-grained
+GMgrko,"The cheerleaders perform a stunt before cheering energetically as the camera zooms in, then the dancers transition from a straight line into a playful, staggered formation with a slight camera zoom.","[2, 1, 3, 4]",3383.0996,Scene Cut
+0RQQyh,A small child is seen sitting on a coach opening a present.,"[1, 2, 3, 4]",4786.2124,Scene Cut
+rYEH4u,"The camera zooms out, revealing more of the street with additional pedestrians, as a man cleans a Subway restaurant window, lowering his tool while wiping the glass.","[1, 2, 4, 3]",6374.478,Scene Cut
+f50ftR,"The mascot moves into the scene, then the cheerleaders perform stunts, raising their teammates high, and finally, they hold their positions in a pyramid formation.","[3, 4, 2, 1]",3372.9773,Scene Cut
+6icPpu, The boy continues bashing the pinata before taking a break and handing the stick to another boy.,"[1, 4, 3, 2]",1807.2549,Scene Cut
+TAXKCZ,"The climber ascends the rock face, then another climber follows suit, before the first climber lowers himself down, and finally, a group relaxes in a vehicle on the road.","[4, 2, 1, 3]",6302.8696,Scene Cut
+ivLQUu,"The person begins to paint the wall, then moves further along as they continue applying paint, gradually covering more area.","[1, 2, 3, 4]",237.98665,Fine-grained
+2yBGTp,"The athlete begins to lift the barbell from a squat position, then raises it higher while standing, and finally stabilizes it overhead before preparing to lower it again.","[4, 1, 2, 3]",136.1468,Fine-grained
+UOLzPF, The two friends are pushed down the hill and they slide to the bottom.,"[2, 4, 1, 3]",11272.254,Scene Cut
+UYlRQq,"The bartender pours vodka into a glass, then adds blue liquid, followed by preparing two colorful drinks, and finally adjusts the glasses on the bar.","[3, 2, 4, 1]",2790.3574,Scene Cut
+sb1SI8, The person cuts a hole in the ice as well as bait and finally catches a fish.,"[1, 2, 3, 4]",9512.349,Scene Cut
+6Ld0o0,"The trainer begins to demonstrate the exercise, then the trainee lowers into position while receiving guidance, and finally, they both stand together, ready to proceed.","[1, 2, 4, 3]",529.2464,Fine-grained
+pPnUW2,  Someone yells go and the teams pull on the rope as the team in the white wins the match and they run towards the middle of the field and are met with others in white shirts and they celebrate the win.,"[1, 3, 4, 2]",3867.5586,Scene Cut
+zuyQIG,"The camera zooms in as a person moves closer to a mirror, inserting something into their eye, then shifts to a girl having her hair cut, followed by a zoom-out revealing a stylist applying product to her hair.","[3, 2, 4, 1]",6786.215,Scene Cut
+0wiUEb,"Two skiers ride a lift, then descend a steep snowy slope; subsequently, a skier glides downwards, passing other skiers, and approaches a visible lift station at the bottom.","[4, 2, 3, 1]",2418.1328,Scene Cut
+nJwv9f,"A diver flips in mid-air while a boy descends into the pool, then the camera pans left, revealing a wider view of the pool with players gathered at the far end.","[2, 3, 4, 1]",3062.7878,Scene Cut
+4moZ8n, They begin chasing a ball with the sticks.,"[3, 4, 2, 1]",2512.827,Scene Cut
+zRCn6U,"The woman approaches the platform, then moves into the yellow gondola, where she prepares for the ride, and finally looks down at the ground below.","[4, 3, 1, 2]",6212.7944,Scene Cut
+LEgh5D,"The cheerleaders transition from a vertical to a crouched formation at the field's center as the camera remains steady, then players on the field vanish, replaced by Tom McCartney's contact information against a black background.","[2, 1, 3, 4]",6640.3438,Scene Cut
+ZHZVYO,"The snowboarder descends and rotates left as the camera zooms in, followed by the skier moving downward, disappearing into the shadowed snowy path.","[2, 1, 4, 3]",7223.588,Scene Cut
+5ZSVIt,"A hand with decorated nails emerges from the swirling polish, revealing a clean cup, as the scene shifts to a child stirring sugar with a spoon, then zooming out to show them smiling and waving.","[1, 4, 3, 2]",5258.4604,Scene Cut
+XCal9V," The women take turns diving off the high board, flipping as they go.","[2, 1, 4, 3]",5635.9067,Scene Cut
+C1F1jb," After he's done, he gets off the bar and walks towards the judges and other contestants.","[3, 2, 1, 4]",6216.1304,Scene Cut
+MmHGcM,"The bike seat lowers as the person leans forward to grip the handlebars, then the cable handle transitions from the woman's grasp to the man's hands as he kneels and pulls it towards him.","[4, 2, 3, 1]",5599.0156,Scene Cut
+bILIxV," He leans way back, being drug by the force of the wind.","[2, 4, 1, 3]",2388.094,Scene Cut
+XzFZln,"The trainer begins to assist the athlete in raising the barbell overhead, then shifts to a kneeling position to provide further guidance as the athlete prepares for the lift.","[1, 3, 2, 4]",508.29233,Fine-grained
+kGQLGG,"The bartender pours whiskey into glasses with ice and lemon slices as the camera zooms out, revealing two people behind the bar, then a glass moves left to center while the bartender lifts a cocktail shaker.","[3, 2, 4, 1]",7203.8413,Scene Cut
+afBztG,"The stylist lifts and texturizes the hair, while the camera zooms out, then hands twist and secure the hair upward, forming a styled updo.","[1, 4, 3, 2]",10144.121,Scene Cut
+3tHDMM,"When the woman is done dancing she stands there with her arms crossed on her chest and the crowds applauds, and gives her a standing ovation while she takes a few bows.","[1, 2, 3, 4]",3997.3154,Scene Cut
+ShmmYG,  The person blowing the leaves moves around the yard and continues to do lawn maintenance.,"[2, 4, 3, 1]",2762.0188,Scene Cut
+X92UPH,"The drummer begins to play energetically, then raises her arms high, and finally stands up from her seat, finishing her performance.","[1, 2, 4, 3]",720.72363,Fine-grained
+eAjiFc,"The dancers transition from walking with fans to balancing with one leg raised and fans open, followed by a snowboarder descending the slope, then a close-up shows them gesturing while speaking.","[2, 3, 1, 4]",5039.197,Scene Cut
+jDyMGq,"The yellow tool lowers onto the ski and shifts slightly left as hands adjust its position, then metal pieces are rearranged from scattered to stacked alignment on the table as the camera zooms out slightly.","[3, 4, 1, 2]",5794.352,Scene Cut
+0qYQ3Y, The man in black sumo shorts throws the other man out of the ring.,"[3, 1, 2, 4]",744.3392,Fine-grained
+QLo8Jf,"The woman moves closer to the congas, smiling and slightly turning right, then the camera zooms in on the conga player, making him more central as he continues playing alongside the guitarist.","[2, 4, 3, 1]",8821.96,Scene Cut
+Kg8AEy,"The box transitions from being unwrapped on green paper to fully wrapped in red paper with decorations, then a pink ribbon is tied around it, culminating in a zoom-out revealing the box held with a backdrop of other decorated boxes.","[3, 4, 2, 1]",3156.8203,Scene Cut
+NTcmwM,Two men are seen holding each other's hands and moving one to the other side arm wrestling.,"[3, 4, 1, 2]",8738.858,Scene Cut
+ZPjlll,"The person jumps off a log and moves rightward as the camera pans slightly right, then bends to pick up an object and walks further down the beach, receding into the distance with a subtle camera pan.","[2, 1, 3, 4]",4788.503,Scene Cut
+obIyz8, The man slows down before he lets go of the tow rope and comes to a stop.,"[2, 4, 3, 1]",4157.531,Scene Cut
+toNbQr,"The person mixes paint in a bucket before pointing at a fence, while another man stretches with hands on his head, then places leaves into a trash can on the lawn.","[4, 1, 3, 2]",7643.112,Scene Cut
+0OXAfR,"The athlete runs left towards the mat with a pole, as the camera pans left, transitioning to a performer entering from the right, moving to the center, while the camera continues panning left.","[4, 2, 1, 3]",3239.3723,Scene Cut
+1DufcQ,"The instructor adjusts the rower's handle position, then the person transitions from leaning forward on an exercise ball to kneeling upright on it.","[1, 2, 3, 4]",2558.3508,Scene Cut
+ndNM6p, A leaf blower blows them away from the house.,"[4, 3, 2, 1]",2958.8787,Scene Cut
+nhevKU,"The person jumps off the log onto the sand as the camera pans right, then pushes the lawn mower forward, bringing it closer to the foreground.","[1, 2, 4, 3]",6309.1763,Scene Cut
+Mx2yGR,"The street performers play music as people walk by, then the scene shifts to a shopping area with more pedestrians, before returning to the performers. Finally, the camera captures a wider view of the street.","[3, 1, 2, 4]",5513.2817,Scene Cut
+LtwE6p, the boy dips the paint roller in a paint holder.,"[1, 3, 2, 4]",762.05304,Fine-grained
+Bj9Pmt,"The band forms a more organized arrangement as the camera zooms out on the field, then transitions to marching down the street, playing drums and slightly shifting right as the camera pans left.","[1, 3, 2, 4]",6781.2363,Scene Cut
+XVrhoY, She pours the bowl into a bucket on the ground.,"[1, 2, 4, 3]",3435.3884,Scene Cut
+dOwZej, The girl jumps out of her tube and finds herself swimming in the water.,"[2, 1, 4, 3]",7662.4595,Scene Cut
+YM8fuZ,"The performer begins to raise his arms while others hula hoop in the background; then, he lowers his arms as the scene continues to unfold around him.","[3, 2, 4, 1]",316.38217,Fine-grained
+Bocelv,"Two curlers sweep a stone, transitioning to a close-up of a thumbs-up; simultaneously, a pedal is attached to a bike, then the view zooms out to reveal a person adjusting the tire.","[4, 2, 1, 3]",12937.552,Scene Cut
+lTvdur, He places the final ingredients into the bowl while talking to the camera and pans out on the meal he made.,"[3, 1, 4, 2]",4999.481,Scene Cut
+CDnZXl,A woman is seen swinging an ax down on a log while another man watches on the side.,"[1, 2, 3, 4]",1972.858,Scene Cut
