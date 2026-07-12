@@ -32,21 +32,21 @@
 아래 이미지 파일 링크를 열어 직접 눈으로 검수해 보시기 바랍니다:
 
 1. **샘플 1: 다중 씬 전환 (Multi-scene transitions) - `u7w0lr`**
-   * **이미지 확인**: [wrong_inspect_u7w0lr.png](./wrong_inspect_u7w0lr.png)
+   * **이미지 확인**: [wrong_inspect_u7w0lr.png](./assets/wrong_inspect_u7w0lr.png)
    * **텍스트**: *"A girl hula hoops indoors before the scene shifts outdoors to a cheering group on rocks; then, players swim towards the pool's center..."*
    * **정답**: `[3, 1, 2, 4]` (Frame 2 ➡️ Frame 3 ➡️ Frame 1 ➡️ Frame 4)
    * **모델 예측**: `[1, 2, 3, 4]`
    * **검수 가이드**: 실내 훌라후프(Frame 2), 야외 바위(Frame 3), 수영장(Frame 1, 4)이 완전히 분리되어 있어, 사람이 직관적으로 정렬하기는 쉬운 샘플입니다. 모델이 씬 분할과 키워드 매칭에 실패했음을 뜻합니다.
 
 2. **샘플 2: 미세 동작 씬 (Fine-grained action) - `kSE41E`**
-   * **이미지 확인**: [wrong_inspect_kSE41E.png](./wrong_inspect_kSE41E.png)
+   * **이미지 확인**: [wrong_inspect_kSE41E.png](./assets/wrong_inspect_kSE41E.png)
    * **텍스트**: *"The man moves closer to the mirror, tilting his head up while shaving, then a towel is raised to a face as the camera zooms in on a hand reaching down to touch the water surface."*
    * **정답**: `[3, 2, 4, 1]` (Frame 4 ➡️ Frame 2 ➡️ Frame 1 ➡️ Frame 3)
    * **모델 예측**: `[1, 2, 3, 4]`
    * **검수 가이드**: 거울을 보고 면도하는 동작과 손이 물 표면에 닿는 세부 묘사가 섞여 있습니다. 프레임 간 픽셀 차이가 미세하고 행동 묘사의 주체를 헷갈리기 쉽습니다.
 
 3. **샘플 3: 객체 상호작용 (Object interaction) - `Qrt4Ax`**
-   * **이미지 확인**: [wrong_inspect_Qrt4Ax.png](./wrong_inspect_Qrt4Ax.png)
+   * **이미지 확인**: [wrong_inspect_Qrt4Ax.png](./assets/wrong_inspect_Qrt4Ax.png)
    * **텍스트**: *"A person adjusts a bicycle as it shifts right and the camera lowers... then, the view focuses on hands attaching a bike accessory before revealing two similar items being held..."*
    * **정답**: `[4, 2, 1, 3]` (Frame 3 ➡️ Frame 2 ➡️ Frame 4 ➡️ Frame 1)
    * **모델 예측**: `[1, 2, 3, 4]`
