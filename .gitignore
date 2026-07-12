@@ -4,3 +4,4 @@ venv/
 __pycache__/
 *.pyc
 snuaichallenge_data/
+snuaichallenge_data_resized/
