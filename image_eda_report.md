@@ -50,14 +50,14 @@
   * **우상단/우하단 로고 및 타임스탬프 의심 프레임**: **75.2%**
   * *해석*: 전체 이미지의 약 3/4가 우상단 등에 유튜브 로고, 방송사 로고, 타임스탬프를 포함하고 있습니다. 이는 4개 프레임 전반에 걸쳐 고정되어 나타나는 경우가 많으므로 오배열을 유도하진 않겠지만, 모델이 학습할 불필요한 시각적 노이즈가 될 수 있어 학습 시 유의해야 합니다.
 
-![Image EDA Results](./assets/image_eda_results.png)
+![Image EDA Results](./image_eda_results.png)
 
 
 ---
 
 ## 2. 이미지 사전 리사이즈 캐싱 스크립트
 VLM(Qwen2-VL 등) 학습 및 추론 시 매번 디스크에서 원본 크기(예: 640x360) 이미지를 읽어 CPU로 리사이즈하면 GPU가 노는 병목(CPU-bound bottleneck)이 발생합니다.
-* **구현 파일**: [resize_cache.py](../scripts/resize_cache.py)
+* **구현 파일**: [resize_cache.py](./resize_cache.py)
 * **작동 방식**: 멀티스레드를 활용해 종횡비를 유지하며 이미지 장축을 `448px`로 미리 리사이즈하여 캐싱 폴더(`snuaichallenge_data_resized/`)에 저장해 둡니다. (`448`은 Qwen2-VL이 사용하는 28-pixel 패치 크기 `16 * 28`에 부합하는 권장 해상도입니다.)
 
 ---
@@ -87,7 +87,7 @@ Qwen2-VL의 이미지 처리 패치 크기 ($28 \times 28$) 배수 기준으로 
 | **Grid_4** | 560px | 16.00% | 1.6150s | 4.90 GB | 168개 |
 
 #### 📊 해상도별 성능 및 속도 트레이드오프 곡선
-![Resolution Tradeoff Curve](./assets/resolution_tradeoff_curve.png)
+![Resolution Tradeoff Curve](./resolution_tradeoff_curve.png)
 
 ### 3.3 실험 결과 분석 및 권장 세팅 결정
 1. **정확도 병목 확인**: 해상도를 `224px`에서 `448px`까지 높여도 Exact Match 정확도는 **17.00%**로 동일하게 유지됩니다. 심지어 `560px`로 더 높였을 때는 정확도가 **16.00%**로 소폭 감소했습니다.
@@ -97,6 +97,6 @@ Qwen2-VL의 이미지 처리 패치 크기 ($28 \times 28$) 배수 기준으로 
 4. **최종 권장 해상도**: **`Grid_1 (224px)`**을 주력 해상도로 채택합니다. 화질 저하에 의한 패널티 없이 추론 시간과 메모리를 획기적으로 절약할 수 있습니다.
 
 ### 3.4 트레이드오프 곡선 자동 시각화 도구
-* **구현 파일**: [plot_tradeoff.py](../scripts/plot_tradeoff.py)
-* **설명**: `plot_tradeoff.py`에 실제 VRAM과 스피드를 적용하여 위의 [resolution_tradeoff_curve.png](./assets/resolution_tradeoff_curve.png) 그래프가 생성되었습니다.
+* **구현 파일**: [plot_tradeoff.py](./plot_tradeoff.py)
+* **설명**: `plot_tradeoff.py`에 실제 VRAM과 스피드를 적용하여 위의 `resolution_tradeoff_curve.png` 그래프가 생성되었습니다.
 
