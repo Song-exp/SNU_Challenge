@@ -5,3 +5,12 @@ __pycache__/
 *.pyc
 snuaichallenge_data/
 snuaichallenge_data_resized/
+
+# 대용량 데이터/산출물 (git 제외)
+data/
+models/
+outputs/
+logs/
+*.safetensors
+*.pt
+*.bin
