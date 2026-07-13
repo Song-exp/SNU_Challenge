@@ -109,6 +109,4 @@ Qwen2-VL의 이미지 처리 패치 크기 ($28 \times 28$) 배수 기준으로 
 
 ### 3.5 트레이드오프 곡선 자동 시각화 도구
 * **구현 파일**: [plot_tradeoff.py](./plot_tradeoff.py)
-* **설명**: `plot_tradeoff.py`에 실제 VRAM과 스피드를 적용하여 위의 [resolution_tradeoff_curve.png](./assets/resolution_tradeoff_curve.png) 그래프가 생성되었습니다.
-
-
+* **설명**: `plot_tradeoff.py`에 실제 VRAM과 스피드를 적용하여 위의 [resolution_tradeoff_curve.png](./resolution_tradeoff_curve.png) 그래프가 생성되었습니다.
