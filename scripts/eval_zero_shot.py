@@ -15,6 +15,8 @@ from datetime import datetime
 
 os.chdir(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))  # 프로젝트 루트 기준 상대 경로
 
+import prompts as prompt_registry  # noqa: E402 (scripts/ 가 sys.path[0])
+
 
 def parse_model_output(output_text):
     """출력에서 순열을 추출해 제출 형식(각 이미지의 원래 위치)으로 역변환."""
@@ -32,19 +34,13 @@ def parse_model_output(output_text):
     return [1, 2, 3, 4], False
 
 
-def get_prompt_message(row, image_dir):
+def get_prompt_message(row, image_dir, prompt_name="v1_list"):
     img_files = [row["Input_1"], row["Input_2"], row["Input_3"], row["Input_4"]]
     content = []
     for i, img_file in enumerate(img_files):
         content.append({"type": "image", "image": os.path.join(image_dir, row["Id"], img_file)})
         content.append({"type": "text", "text": f"\nImage {i + 1}\n"})
-    content.append({"type": "text", "text": (
-        f'Thinking about the sentence: "{row["Sentence"]}"\n'
-        "Look at the 4 images above labeled Image 1 to Image 4. "
-        "Determine the correct chronological order of these images to match the sentence. "
-        "Provide the answer ONLY as a Python list of integers. "
-        "Example: [1, 2, 3, 4]"
-    )})
+    content.append({"type": "text", "text": prompt_registry.build_user_text(prompt_name, row["Sentence"])})
     return [{"role": "user", "content": content}]
 
 
@@ -63,6 +59,9 @@ def wait_for_free_vram(required_gb: float, timeout_hours: float = 8.0):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", required=True, help="모델 경로 (예: ./models/Qwen2-VL-2B-Instruct)")
+    parser.add_argument("--adapter", default=None, help="PEFT LoRA 어댑터 경로 (파인튜닝 결과 평가용)")
+    parser.add_argument("--prompt", default="v1_list", choices=list(prompt_registry.PROMPTS),
+                        help="프롬프트 이름 (파인튜닝 모델은 학습 때와 같은 이름 필수)")
     parser.add_argument("--load-4bit", action="store_true")
     parser.add_argument("--max-pixels", type=int, default=640 * 480)
     parser.add_argument("--max-new-tokens", type=int, default=32)
@@ -103,6 +102,10 @@ def main():
         args.model, dtype=dtype, device_map=device,
         quantization_config=quant_cfg, local_files_only=True,
     )
+    if args.adapter:
+        from peft import PeftModel
+        model = PeftModel.from_pretrained(model, args.adapter)
+        print(f"어댑터 적용: {args.adapter}", flush=True)
     model.eval()
     processor = AutoProcessor.from_pretrained(args.model, max_pixels=args.max_pixels, local_files_only=True)
     print("모델 로드 완료", flush=True)
@@ -113,7 +116,7 @@ def main():
     t_start = time.time()
 
     for _, row in tqdm(eval_df.iterrows(), total=len(eval_df)):
-        messages = get_prompt_message(row, image_dir)
+        messages = get_prompt_message(row, image_dir, args.prompt)
         text = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
         image_inputs, video_inputs = process_vision_info(messages)
         inputs = processor(
@@ -137,27 +140,44 @@ def main():
     elapsed = time.time() - t_start
     res_df = pd.DataFrame(records)
 
+    # 핵심 지표: 섞인 샘플(No_ordering=False) 정확도 — 무작위 기준선 1/24 = 4.2%
+    res_df = res_df.merge(eval_df[["Id", "No_ordering"]], on="Id")
+    shuffled = res_df[~res_df["No_ordering"]]
+    identity = res_df[res_df["No_ordering"]]
+
+    # 어댑터 평가는 model_id에 run 이름을 붙여 experiments.csv에서 구분한다
+    model_tag = args.model
+    if args.adapter:
+        run_name = os.path.basename(os.path.dirname(args.adapter.rstrip("/\\"))) or "adapter"
+        model_tag = f"{args.model}+{run_name}"
+
     summary = {
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
-        "model_id": args.model,
+        "model_id": model_tag,
         "load_4bit": args.load_4bit,
+        "prompt": args.prompt,
         "max_pixels": args.max_pixels,
         "eval_n": len(res_df),
         "accuracy": round(res_df["correct"].mean(), 4),
+        "acc_shuffled": round(shuffled["correct"].mean(), 4) if len(shuffled) else None,
+        "acc_identity": round(identity["correct"].mean(), 4) if len(identity) else None,
         "parse_fail": int((~res_df["parsed"]).sum()),
         "sec_per_sample": round(elapsed / len(res_df), 2),
         "peak_vram_gb": round(torch.cuda.max_memory_allocated() / 1e9, 2),
     }
     os.makedirs(os.path.dirname(args.results), exist_ok=True)
-    pd.DataFrame([summary]).to_csv(
-        args.results, mode="a", index=False, header=not os.path.exists(args.results)
-    )
+    # 컬럼이 추가돼도 기존 기록과 어긋나지 않게 읽어서 합친 뒤 전체를 다시 쓴다
+    new_row = pd.DataFrame([summary])
+    if os.path.exists(args.results):
+        new_row = pd.concat([pd.read_csv(args.results), new_row], ignore_index=True)
+    new_row.to_csv(args.results, index=False)
 
-    model_name = args.model.rstrip("/").split("/")[-1]
-    wrong = res_df[~res_df["correct"]].merge(eval_df[["Id", "Sentence", "No_ordering"]], on="Id")
+    model_name = model_tag.rstrip("/").split("/")[-1].replace("+", "_")
+    wrong = res_df[~res_df["correct"]].merge(eval_df[["Id", "Sentence"]], on="Id")
     wrong.to_csv(f"./outputs/errors_{model_name}.csv", index=False)
 
-    print(f"완료: 정확도 {summary['accuracy']:.3f}, 샘플당 {summary['sec_per_sample']}초, "
+    print(f"완료: 전체 {summary['accuracy']:.3f} | 섞인 샘플 {summary['acc_shuffled']:.3f} "
+          f"| identity {summary['acc_identity']:.3f} | 샘플당 {summary['sec_per_sample']}초, "
           f"VRAM {summary['peak_vram_gb']}GB -> {args.results}", flush=True)
 
 

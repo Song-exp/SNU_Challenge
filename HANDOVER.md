@@ -36,11 +36,14 @@
 SNU_AI_Challenge/
 ├── PROJECT_SETUP.md            # 대회 규정·평가 기준·환경 가이드
 ├── HANDOVER.md                 # 본 문서
+├── EXPERIMENTS.md              # 파인튜닝 실험 세팅·실행·로드맵 (2026-07-13 추가)
 ├── SNU_AI_Challenge_Baseline_Code.ipynb   # 원본 베이스라인 (참고용)
 ├── Model_Experiments.ipynb     # 모델 비교 실험장 (MODEL_ID만 바꿔 Run All)
+├── Train_Experiments.ipynb     # 파인튜닝 조종석 (train.py 실행·loss·평가·오답 분석)
 ├── scripts/
 │   ├── download_models.py      # curl 이어받기 다운로더 (※ 동시에 1개만 실행)
-│   ├── eval_zero_shot.py       # holdout 300 평가 (노트북과 동일 로직의 .py)
+│   ├── train.py                # QLoRA 파인튜닝 엔진 (재셔플 증강·검증셋 제외·밤샘 안전장치)
+│   ├── eval_zero_shot.py       # holdout 300 평가 (--adapter로 파인튜닝 결과도 평가)
 │   └── overnight_run.py        # 다운로드 대기 → 순차 평가 오케스트레이터
 ├── splits/holdout_300.csv      # 고정 평가셋 ⚠️ 학습 데이터에서 제외 필수
 ├── snuaichallenge_data/        # 대회 데이터 (git 제외)
