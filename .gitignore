@@ -1,16 +1,45 @@
+# Python Virtual Environments
 .venv/
 venv/
-.ipynb_checkpoints/
+env/
+ENV/
+
+# Python cache & compiled files
 __pycache__/
 *.pyc
-snuaichallenge_data/
-snuaichallenge_data_resized/
+*.pyo
+*.pyd
+.pytest_cache/
+.ipynb_checkpoints/
 
-# 대용량 데이터/산출물 (git 제외)
-data/
-models/
+# Dataset files (Exclude large CSVs and frame folders)
+*.csv
+data_train/
+data_test/
+
+# Model weights & Checkpoints (Exclude heavy weight files)
+checkpoints/
 outputs/
-logs/
-*.safetensors
+weights/
 *.pt
+*.pth
 *.bin
+*.safetensors
+
+# Training logs & Experiments
+runs/
+wandb/
+.wandb/
+lightning_logs/
+
+# Operating System files
+Thumbs.db
+ehthumbs.db
+.DS_Store
+
+# IDE / Editors
+.vscode/
+.idea/
+
+# Security & Environment variables
+.env
