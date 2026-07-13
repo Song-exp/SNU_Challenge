@@ -43,3 +43,8 @@ ehthumbs.db
 
 # Security & Environment variables
 .env
+
+# Local dataset & model weights (대용량 — 절대 커밋 금지)
+snuaichallenge_data/
+snuaichallenge_data_resized/
+models/

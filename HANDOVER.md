@@ -1,105 +1,148 @@
 # 작업 인수인계서 — SNU AI Challenge (비디오 프레임 순서 예측)
 
-> 최종 갱신: 2026-07-13 | 작성: 초기 세팅~zero-shot 비교 단계 담당
-> 대회 규정·평가 기준은 `PROJECT_SETUP.md` 참조. 이 문서는 "지금까지 한 것, 지금 상태, 다음에 할 것"만 다룬다.
+> 최종 갱신: **2026-07-14** | 범위: 초기 세팅 → zero-shot 비교 → **파인튜닝 실험 1라운드(진행 중)**
+> 대회 규정·평가 기준은 `PROJECT_SETUP.md`, 실험 상세 설계는 `EXPERIMENTS.md` 참조. 이 문서는 "지금까지 한 것, 지금 상태, 다음에 할 것"만 다룬다.
 
 ---
 
 ## 1. 한 줄 현황
 
-**환경 구축과 5개 후보 모델 zero-shot 비교까지 완료. 결론: zero-shot으로는 아무 모델도 못 푼다(섞인 샘플 정확도 = 무작위 수준). 다음 단계는 Qwen3-VL-2B QLoRA 파인튜닝(`train.py` 작성부터).**
+**첫 파인튜닝(exp01: Qwen3-VL-2B QLoRA)이 돌아가는 중 (7/14 오전 완료 예상). 종료되면 어댑터 평가 → 프롬프트 스크리닝 2종까지 자동 실행되어, 아침에 `experiments.csv` 한 표로 "파인튜닝 효과 + CoT 프롬프트 가능성"을 판정한다.**
 
 ## 2. 완료된 작업
 
 | 작업 | 산출물 |
 |---|---|
-| 로컬 GPU 환경 구축 (RTX 5060 8GB, torch cu128) | `.venv` (Python 3.14, torch 2.11+cu128, transformers 5.13, bitsandbytes 0.49) |
-| 더미 제출 파일 (팀 구성용, 전부 `[1,2,3,4]`) | `outputs/submission.csv` |
-| 고정 평가셋 구축 (train에서 시드 42로 300개) | `splits/holdout_300.csv` |
-| 모델 다운로드 인프라 (불안정 네트워크 대응) | `scripts/download_models.py`, `models/` 5개 모델 41.7GB |
-| 모델 비교 실험 노트북 | `Model_Experiments.ipynb` |
-| 평가 자동화 | `scripts/eval_zero_shot.py`, `scripts/overnight_run.py` |
-| **5개 모델 zero-shot 비교** | `outputs/experiments.csv`, `outputs/zero_shot_report.md`, `outputs/errors_*.csv` |
+| 로컬 GPU 환경 구축 (RTX 5060 8GB, torch cu128) | `.venv` (Python 3.14, torch 2.11+cu128, transformers 5.13, bitsandbytes, peft) |
+| 더미 제출 파일 (팀 구성용) | `outputs/submission.csv` |
+| 고정 평가셋 (train에서 시드 42, 300개) | `splits/holdout_300.csv` |
+| 모델 다운로드 인프라 (불안정 네트워크 대응) | `scripts/download_models.py`, `models/` 5개 41.7GB |
+| 5개 모델 zero-shot 비교 | `outputs/zero_shot_report.md`, `outputs/experiments.csv` |
+| QLoRA 학습 엔진 + 실험 조종석 | `scripts/train.py`, `Train_Experiments.ipynb`, `EXPERIMENTS.md` |
+| 프롬프트 레지스트리 (학습·평가 공유) | `scripts/prompts.py` — v1_list / v2_temporal / v3_cot(CoT) |
+| 학습 종료 후 자동 평가 큐 | `scripts/prompt_screen_queue.py` (+ `outputs/prompt_queue.log`) |
+| 결과 파일 보존 체계 (7/14 정비) | 전체 예측 `outputs/preds/`, 오답 `outputs/errors_*.csv` — 모델 출력 전문 포함 |
 
-## 3. 핵심 결과 (상세: `outputs/zero_shot_report.md`)
+## 3. 핵심 결과 요약 (7/13 zero-shot, 상세: `outputs/zero_shot_report.md`)
 
-- 찍기 기준선(항상 `[1,2,3,4]`) = 16.0% (No_ordering 비율)
-- 5개 모델 전체 정확도 7.0~16.3%지만, **섞인 샘플만 보면 0.8~4.4% = 무작위(4.2%)와 동급**
-- 점수 차이는 전부 "identity 응답 빈도" 차이 → **zero-shot 순위로 모델 잠재력 판단 금지**
-- 평가 파이프라인 재현성 검증 완료 (동일 입력 → 소수점까지 동일 결과)
+- 5개 모델 전부 **섞인 샘플 정확도 0.8~4.4% = 무작위 수준** → zero-shot으로는 태스크 불가, 점수는 파인튜닝에서 나와야 함
+- 전체 점수 차이는 identity(`[1,2,3,4]`) 응답 빈도 착시 → **모든 판정은 `acc_shuffled` 기준** (무작위 4.2%, ±4%p는 노이즈)
+- 선정: 레시피 개발 = Qwen3-VL-2B (0.69초/샘플) → 최종 후보 = Qwen3-VL-4B
 
-**권고**: 레시피 개발 = Qwen3-VL-2B (0.69초/샘플, fp16 학습 여유) → 최종 = Qwen3-VL-4B QLoRA. 이후 모든 실험의 핵심 지표는 **섞인 샘플 정확도**.
+## 4. 실험 체계 (7/14 기준 — 이 절이 현재 세팅의 본체)
 
-## 4. 저장소 구조
+### 4.1 실험 사이클
+
+모든 실험은 같은 사이클: **`train.py` 학습 → `eval_zero_shot.py --adapter` 평가 → `experiments.csv` 비교**.
+실험 정의는 `Train_Experiments.ipynb` ① 레지스트리에 한 줄 추가 (기본값과 다른 것만 명시):
+
+- 등록된 실험: exp01(기준점) / exp02(aug 4배) / exp03(lr 5e-5) / exp04(LoRA r32) / exp05(v2 프롬프트 세트) / (보류) exp10(4B 스케일업)
+- 실행 순서: 스모크(3분, 코드 변경 시 필수) → 본학습(백그라운드) → 게이지 → 평가 → 오답 비교
+
+### 4.2 비용 사다리 — 실험 예산 운영 원칙
+
+| 단계 | 비용 | 용도 |
+|---|---|---|
+| 추론 스크리닝 | 분 단위 | zero-shot 프롬프트 1차 필터, 어댑터 교차 평가 |
+| 미니 학습 (`--max-samples 1000 --max-steps 300`) | ~1.5시간 | 프롬프트/데이터/하이퍼파라미터 후보 비교의 **본편** |
+| 본학습 (전체 데이터) | ~10시간 | 미니 학습 승자의 결승전 (밤 배치 1회 = 1실험) |
+
+### 4.3 프롬프트 실험의 원칙 (오해 주의)
+
+- **프롬프트는 학습 데이터의 일부다**: 학습 샘플 = 이미지 4장 + 프롬프트 + 정답. 따라서 어댑터는 학습 프롬프트에 조율됨
+- **학습·평가에 반드시 같은 프롬프트** (`--prompt <이름>` 세트 적용) — 어댑터에 다른 프롬프트를 꽂은 결과는 우열 근거가 아님
+- 어댑터 없는 zero-shot에서만 "추론만으로" 프롬프트 비교 가능 → 그래서 스크리닝은 zero-shot, 본 비교는 프롬프트별 미니 학습
+- CoT 계열(v3_cot)은 평가 시 `--max-new-tokens 256` 필수 (기본 32면 잘려서 전부 파싱 실패)
+
+### 4.4 지금 돌아가는 것 (7/14 00시 기준)
+
+1. **exp01 본학습**: Qwen3-VL-2B fp16 + LoRA(trainable 0.3%), 재셔플 증강 2배 = 18,080항목, lr 1e-4, 1 epoch, v1_list. 약 3.9초/항목, VRAM ~7.0GB, **7/14 오전 10시대 완료 예상**. holdout 300 + `eda/stratified_valid.csv` 494개는 학습에서 제외됨
+2. **종료 후 자동 체인**: 노트북 ⑥ exp01 어댑터 평가 → 큐(`prompt_screen_queue.py`)가 2분 양보 후 v2_temporal → v3_cot(256) zero-shot 평가 (GPU 경합은 VRAM 대기로 자동 직렬화)
+3. **결과 파일**: 성능 = `experiments.csv` | 전체 예측(출력 전문 포함) = `outputs/preds/<모델_프롬프트>.csv` | 오답만 = `outputs/errors_*.csv` | 큐 진행 = `outputs/prompt_queue.log`
+
+### 4.5 아침에 확인할 것 (판정 기준 포함)
+
+1. `Train_Experiments.ipynb` ⑧ 비교표 실행 → `acc_shuffled` 정렬
+2. **exp01 vs zero-shot(0.8%)**: 크게 오르면 파인튜닝 레시피 유효 → exp02~04 밤 배치 개시 / 안 오르면 학습 로그·오답부터 진단
+3. **v3_cot vs 4.2%**: 유의미하게 넘으면 CoT 프롬프트 세트 학습(exp06)을 레지스트리에 추가할 가치
+4. 싼 추가 실험: exp01 어댑터 + v3_cot 교차 평가 (5분) → "파인튜닝 후에도 프롬프트가 중요한가"의 직접 측정
+
+## 5. 저장소 구조
 
 ```
 SNU_AI_Challenge/
-├── PROJECT_SETUP.md            # 대회 규정·평가 기준·환경 가이드
+├── PROJECT_SETUP.md            # 대회 규정·평가 기준
 ├── HANDOVER.md                 # 본 문서
-├── EXPERIMENTS.md              # 파인튜닝 실험 세팅·실행·로드맵 (2026-07-13 추가)
+├── EXPERIMENTS.md              # 파인튜닝 실험 설계·로드맵 상세
+├── Model_Experiments.ipynb     # zero-shot 모델 비교 실험장
+├── Train_Experiments.ipynb     # 파인튜닝 조종석 (레지스트리·학습·게이지·평가·오답)
 ├── SNU_AI_Challenge_Baseline_Code.ipynb   # 원본 베이스라인 (참고용)
-├── Model_Experiments.ipynb     # 모델 비교 실험장 (MODEL_ID만 바꿔 Run All)
-├── Train_Experiments.ipynb     # 파인튜닝 조종석 (train.py 실행·loss·평가·오답 분석)
 ├── scripts/
-│   ├── download_models.py      # curl 이어받기 다운로더 (※ 동시에 1개만 실행)
-│   ├── train.py                # QLoRA 파인튜닝 엔진 (재셔플 증강·검증셋 제외·밤샘 안전장치)
-│   ├── eval_zero_shot.py       # holdout 300 평가 (--adapter로 파인튜닝 결과도 평가)
-│   └── overnight_run.py        # 다운로드 대기 → 순차 평가 오케스트레이터
-├── splits/holdout_300.csv      # 고정 평가셋 ⚠️ 학습 데이터에서 제외 필수
+│   ├── download_models.py      # curl 이어받기 다운로더 (동시 1개만)
+│   ├── train.py                # QLoRA 학습 엔진 (증강·검증셋 제외·밤샘 안전장치)
+│   ├── eval_zero_shot.py       # holdout 평가 (--adapter, --prompt, 전체 예측 저장)
+│   ├── prompts.py              # 프롬프트 레지스트리 (train/eval 공유)
+│   ├── prompt_screen_queue.py  # 학습 종료 대기 → 순차 평가 큐
+│   └── overnight_run.py        # (7/13 사용) 다운로드→평가 오케스트레이터
+├── splits/holdout_300.csv      # 고정 평가셋 ⚠️ 학습 제외 필수
+├── eda/                        # 팀원 EDA 산출물 + stratified_valid.csv(학습 제외 처리됨)
 ├── snuaichallenge_data/        # 대회 데이터 (git 제외)
-├── models/                     # 모델 가중치 5개, 41.7GB (git 제외)
-└── outputs/                    # 결과물 (git 제외)
-    ├── experiments.csv         # 실험 기록 누적 (정확도/속도/VRAM)
-    ├── zero_shot_report.md     # 비교 분석 보고서
-    ├── errors_<모델>.csv       # 모델별 오답 상세 (EDA 담당 분석용)
-    └── submission.csv          # 더미 제출 파일
+├── models/                     # 모델 5개 41.7GB (git 제외)
+└── outputs/                    # (git 제외)
+    ├── experiments.csv         # 실험 기록 누적 (acc_shuffled 포함)
+    ├── runs/<실험명>/           # 어댑터·학습로그·콘솔로그
+    ├── preds/<모델_프롬프트>.csv # 전체 예측 원본 (출력 전문)
+    ├── errors_*.csv            # 오답 추출본
+    └── prompt_queue.log        # 큐 진행 기록
 ```
 
-## 5. 실행 방법
+## 6. 실행 방법
 
 ```powershell
-# 환경
 .venv\Scripts\Activate.ps1
 
-# 모델 추가 다운로드 (스크립트 상단 MODELS 리스트 수정 후)
-python scripts/download_models.py
+# 파인튜닝 실험: Train_Experiments.ipynb에서 ① 레지스트리 수정 → ② NAME 지정 → 모두 실행
+# (스모크 → 본학습 백그라운드 → 게이지 → 평가 → 분석 자동)
 
-# 평가 (모델 하나)
-python scripts/eval_zero_shot.py --model ./models/Qwen3-VL-2B-Instruct
-python scripts/eval_zero_shot.py --model ./models/Qwen2.5-VL-7B-Instruct --load-4bit
+# 프롬프트 스크리닝 큐 (학습 종료 후 자동 실행; 지금도 하나 대기 중 — 중복 실행 금지)
+python scripts/prompt_screen_queue.py --prompts v2_temporal v3_cot:256
 
-# 노트북 실험: Model_Experiments.ipynb 설정 셀만 수정 → Run All
-# (모델 교체 시 커널 재시작 필수 — VRAM 잔여물 방지)
+# 개별 평가
+python scripts/eval_zero_shot.py --model ./models/Qwen3-VL-2B-Instruct --prompt v3_cot --max-new-tokens 256
+python scripts/eval_zero_shot.py --model ./models/Qwen3-VL-2B-Instruct --adapter ./outputs/runs/exp01_aug2_lr1e4/adapter
 ```
 
-## 6. ⚠️ 함정 목록 (전부 실제로 겪은 것)
+## 7. ⚠️ 함정 목록 (전부 실제로 겪은 것)
 
-1. **네트워크가 대용량 다운로드의 긴 연결을 주기적으로 끊는다** → 반드시 `download_models.py`(curl 이어받기) 사용. HF `from_pretrained`의 자동 다운로드에 맡기면 몇 시간씩 행업함 (노트북 로드는 `local_files_only=True`로 차단해둠)
-2. **다운로더는 동시에 1개만** — 중복 실행 시 같은 파일에 동시 쓰기로 오염 위험
-3. **venv의 python.exe는 프로세스가 항상 2개(런처+본체)로 보인다** — 중복 실행 판단은 ParentProcessId로
-4. **PowerShell 1MB = MiB, HF 크기 = 십진 MB** — "다운로드가 95%에서 멈췄다"는 오판의 원인이었음. 같은 단위로 비교할 것
-5. **VRAM 8GB 중 실사용 가능은 ~7.3GB** (시스템 상시 점유 0.8GB) — eval 스크립트의 대기 기준은 7.0GB로 설정돼 있음
-6. **밤샘 작업은 절전이 죽인다** — 스크립트들이 절전 차단을 걸지만, 덮개 닫힘은 못 막음. 전원 연결 + 덮개 열기
-7. **holdout_300.csv의 Id는 파인튜닝 학습 데이터에서 반드시 제외** — 안 지키면 이후 모든 평가가 오염됨
-8. **제출은 1일 2회(팀 전체)** — 실험 검증은 holdout으로, 제출은 확인용으로만
+1. **대용량 다운로드는 `download_models.py`로만** — HF 자동 다운로드는 이 네트워크에서 몇 시간씩 행업 (노트북 로드는 `local_files_only=True`로 차단됨)
+2. **다운로더·큐는 동시에 1개만** — 중복 실행이 락 경합/파일 오염의 원인
+3. **venv python은 프로세스가 쌍(런처+본체)으로 보임** — 중복 판단은 ParentProcessId로
+4. **PowerShell 1MB=MiB vs HF 십진 MB** — 진행률 오판의 단골 원인
+5. **VRAM 실사용 한계 ~7.3GB** (시스템 0.8GB 상시 점유) — eval 대기 기준 7.0GB로 설정됨
+6. **절전이 밤샘 작업을 죽임** — 스크립트가 차단하지만 덮개 닫힘은 못 막음. 전원 + 덮개 열기
+7. **holdout_300 + stratified_valid의 Id는 학습 제외** — train.py가 자동 제외하지만, 새 학습 코드를 짤 때도 유지할 것
+8. **제출은 팀 전체 1일 2회** — 검증은 holdout으로
+9. **실행 중인 노트북(.ipynb)을 밖에서 수정 금지** (자동저장과 충돌). 반대로 `scripts/*.py` 수정은 실행 중 프로세스에 영향 없음 (메모리에 이미 로드됨) — 다음 프로세스부터 적용
+10. **프롬프트-어댑터 세트 원칙** (§4.3) — 어기면 결과 해석이 무효
 
-## 7. 다음 단계 (우선순위순)
+## 8. 다음 단계 (우선순위순)
 
-1. **`scripts/train.py` 작성** — Qwen3-VL-2B QLoRA: 재셔플 증강(샘플당 2~4개 순열), holdout 제외, fp16, gradient checkpointing + batch 1 + accumulation
-2. 파인튜닝 모델을 `eval_zero_shot.py --model <출력경로>`로 평가 → **섞인 샘플 정확도**가 오르는지 확인
-3. 레시피 확정 후 Qwen3-VL-4B로 스케일 업
-4. 출력 형식 실험 (리스트 생성 vs 24-순열 분류 vs 제약 디코딩)
-5. 유의미한 모델이 나오면 test 추론 → 제출 (베이스라인 노트북 또는 eval 스크립트 변형)
+1. (7/14 아침) §4.5 판정 → exp01 결과에 따라 분기
+2. 하이퍼파라미터 밤 배치: exp02(aug4) → exp03(lr) → exp04(r32) — 변수 하나씩
+3. v3_cot 결과 좋으면 CoT 학습 세트(exp06) 추가, 프롬프트 후보는 미니 학습으로 스크리닝
+4. 출력 형식 실험(24-순열 분류/제약 디코딩)은 train.py target_text + 파서 동시 수정 필요 — 별도 브랜치 권장
+5. 레시피 확정 → Qwen3-VL-4B 스케일업(exp10, lr 재탐색) → test 추론 → 첫 진짜 제출
+6. 검증셋 기준 (합의됨): **holdout_300이 공식 채점용**, stratified_valid는 유형별 보조 분석용, 학습 제외는 두 셋의 합집합 (train.py에 반영돼 있음)
 
-## 8. 팀 분업 참고 (합의된 구조)
+## 9. 팀 분업 참고
 
-- **모델링(GPU 보유자)**: 학습·평가 실행 전담, GPU 실험은 "설계 요청 → 밤 배치 실행 → 결과 공유" 사이클
-- **텍스트 EDA**: `errors_*.csv` 오답 유형 분석, 재셔플 증강 생성기, 프롬프트 후보
-- **이미지 EDA**: 해상도-정확도 트레이드오프 설계, 프레임 유사도 분석, 후반 재현성 패키징
-- 규정: 최종 모델은 단일 모델 (여러 실험은 OK, 결과 조합=앙상블=실격)
+- **모델링(GPU 보유자)**: 학습·평가 실행 전담 — "설계 요청 → 밤 배치 → 결과 공유" 사이클
+- **텍스트 EDA**: `outputs/errors_*.csv`(이제 출력 전문 포함) 오답 유형 분석, 프롬프트 후보 제안 (`prompts.py`에 추가만 하면 실험 가능)
+- **이미지 EDA**: 해상도-정확도 트레이드오프, 프레임 유사도, 후반 재현성 패키징
+- 규정: 최종 모델은 단일 모델 (실험 비교는 OK, 결과 조합=앙상블=실격)
 
-## 9. 기타
+## 10. 기타
 
-- git: 현재 변경사항 미커밋 상태. `.gitignore`에 데이터/모델/출력 제외 설정 완료. 커밋 및 GitHub private 저장소 연결 권장 (팀 코드 공유용)
-- 외부 API 사용액: 현재까지 0원
-- Kaggle: 더미 제출로 팀 구성 요건 충족 가능 (`outputs/submission.csv` 업로드)
+- git: 7/13 zero-shot 단계까지 푸시됨. **7/14 변경분(train.py 라운드, prompts.py, 큐, eval 저장 체계) 미커밋** — exp01 결과 확인 후 결과 요약과 함께 커밋 권장
+- 외부 API 사용액: 0원
+- 예선 마감 **7/24** — 남은 열흘 기준, 본학습 슬롯은 최대 8~9회. 미니 학습 스크리닝으로 아껴 쓸 것

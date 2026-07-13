@@ -21,7 +21,9 @@ import prompts as prompt_registry  # noqa: E402 (scripts/ 가 sys.path[0])
 def parse_model_output(output_text):
     """출력에서 순열을 추출해 제출 형식(각 이미지의 원래 위치)으로 역변환."""
     try:
-        s, e = output_text.find("["), output_text.rfind("]")
+        # 마지막 대괄호 그룹을 집는다 — CoT처럼 추론 과정에 대괄호가 섞여도 최종 답만 파싱
+        s = output_text.rfind("[")
+        e = output_text.find("]", s) if s != -1 else -1
         if s != -1 and e != -1:
             result = ast.literal_eval(output_text[s : e + 1])
             if isinstance(result, list) and sorted(result) == [1, 2, 3, 4]:
@@ -134,7 +136,7 @@ def main():
         gt = ast.literal_eval(row["Answer"])
         records.append({
             "Id": row["Id"], "pred": str(pred), "gt": str(gt),
-            "correct": pred == gt, "parsed": parsed, "raw": out_text[:80],
+            "correct": pred == gt, "parsed": parsed, "raw": out_text,  # 전문 보존 (CoT 분석용)
         })
 
     elapsed = time.time() - t_start
@@ -173,12 +175,22 @@ def main():
     new_row.to_csv(args.results, index=False)
 
     model_name = model_tag.rstrip("/").split("/")[-1].replace("+", "_")
-    wrong = res_df[~res_df["correct"]].merge(eval_df[["Id", "Sentence"]], on="Id")
-    wrong.to_csv(f"./outputs/errors_{model_name}.csv", index=False)
+    if args.prompt != "v1_list":
+        model_name += f"_{args.prompt}"  # 프롬프트 실험끼리 결과 파일 덮어쓰기 방지
+
+    # 전체 예측 원본(정답 포함, 모델 출력 전문)과 오답 추출본을 각각 파일로 남긴다
+    # — 백그라운드 실행이라도 결과가 전부 디스크에 보존되도록
+    full = res_df.merge(eval_df[["Id", "Sentence"]], on="Id")
+    os.makedirs("./outputs/preds", exist_ok=True)
+    preds_path = f"./outputs/preds/{model_name}.csv"
+    full.to_csv(preds_path, index=False)
+    errors_path = f"./outputs/errors_{model_name}.csv"
+    full[~full["correct"]].to_csv(errors_path, index=False)
 
     print(f"완료: 전체 {summary['accuracy']:.3f} | 섞인 샘플 {summary['acc_shuffled']:.3f} "
           f"| identity {summary['acc_identity']:.3f} | 샘플당 {summary['sec_per_sample']}초, "
-          f"VRAM {summary['peak_vram_gb']}GB -> {args.results}", flush=True)
+          f"VRAM {summary['peak_vram_gb']}GB\n"
+          f"기록: {args.results} | 전체 예측: {preds_path} | 오답: {errors_path}", flush=True)
 
 
 if __name__ == "__main__":

@@ -27,6 +27,16 @@ PROMPTS = {
         "Provide the answer ONLY as a Python list of integers. "
         "Example: [1, 2, 3, 4]"
     ),
+    # v3: CoT — 묘사→매칭→순서 도출 단계를 거친 뒤 마지막에 리스트 출력.
+    # ⚠️ 평가 시 --max-new-tokens 256 필수 (기본 32면 추론 과정에서 잘려 전부 파싱 실패)
+    "v3_cot": (
+        'Sentence: "{sentence}"\n'
+        "Step 1: Briefly describe what happens in each of the 4 images above (Image 1 to Image 4).\n"
+        "Step 2: Match each image to a part of the sentence.\n"
+        "Step 3: Determine the chronological order of the images.\n"
+        "End your answer with ONLY a Python list of integers on the last line. "
+        "Example: [1, 2, 3, 4]"
+    ),
 }
 
 
