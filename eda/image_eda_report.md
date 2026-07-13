@@ -52,6 +52,8 @@
 * **타임스탬프/로고 유출(Timestamp Leakage) 탐지**: **75.2%**
   * 우상단/우하단의 유튜브 로고, 방송사 로고, 타임스탬프를 포함하고 있으며 모델이 학습할 불필요한 시각적 노이즈가 될 수 있습니다.
 
+#### 📊 4C2 조합 픽셀 오차값(MSE) 분포 및 임계 구간 시각화
+![Pairwise MSE Distribution](./pairwise_mse_distribution.png)
 ![Image EDA Results](./image_eda_results.png)
 
 ---
