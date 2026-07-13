@@ -32,7 +32,7 @@ def compute_avg_mse(sample_id, train_dir):
         return sample_id, None
 
 def main():
-    data_dir = 'C:/Users/user/Desktop/서울대/snuaichallenge_data/'
+    data_dir = './snuaichallenge_data/'
     train_dir = os.path.join(data_dir, 'train')
     train_csv_path = os.path.join(data_dir, 'train.csv')
     
@@ -61,8 +61,8 @@ def main():
     train_df['Type'] = train_df['Avg_MSE'].apply(lambda x: 'Fine-grained' if x < 800 else 'Scene Cut')
     
     # Save cache
-    cache_path = 'C:/Users/user/Desktop/서울대/eda/dataset_mse_cache.csv'
-    train_df[['Id', 'Sentence', 'Answer', 'Avg_MSE', 'Type']].to_csv(cache_path, index=False)
+    cache_path = './eda/dataset_mse_cache.csv'
+    train_df[['Id', 'Sentence', 'Answer', 'Avg_MSE', 'Type']].to_csv(cache_path, index=False, encoding='utf-8-sig')
     print(f"Saved full dataset MSE cache to {cache_path}")
     
     # Print distribution
@@ -88,8 +88,8 @@ def main():
     # Combine
     stratified_valid = pd.concat([fine_sampled, scene_sampled]).sample(frac=1.0, random_state=seed) # Shuffle
     
-    valid_save_path = 'C:/Users/user/Desktop/서울대/eda/stratified_valid.csv'
-    stratified_valid[['Id', 'Sentence', 'Answer', 'Avg_MSE', 'Type']].to_csv(valid_save_path, index=False)
+    valid_save_path = './eda/stratified_valid.csv'
+    stratified_valid[['Id', 'Sentence', 'Answer', 'Avg_MSE', 'Type']].to_csv(valid_save_path, index=False, encoding='utf-8-sig')
     
     print(f"Generated stratified validation set containing:")
     print(f" - Fine-grained samples: {num_fine} (Avg MSE: {fine_sampled['Avg_MSE'].mean():.2f})")

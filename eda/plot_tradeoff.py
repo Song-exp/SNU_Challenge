@@ -50,6 +50,6 @@ for r, s, a, v in zip(resolutions, speed_sec_per_sample, accuracy_em, vram_usage
 plt.title("Resolution vs. Inference Speed & Accuracy Trade-off", fontsize=14, fontweight='bold', pad=15)
 plt.tight_layout()
 
-save_path = 'C:/Users/user/Desktop/서울대/resolution_tradeoff_curve.png'
+save_path = './eda/resolution_tradeoff_curve.png'
 plt.savefig(save_path, dpi=200)
 print(f"\nTrade-off curve plot saved successfully to {save_path}")

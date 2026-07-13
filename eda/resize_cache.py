@@ -63,9 +63,9 @@ def process_split(data_dir, split_name, output_dir, max_dim=448, num_workers=8):
 if __name__ == "__main__":
     import argparse
     
-    # Default parameters
-    DATA_DIR = "C:/Users/user/Desktop/서울대/snuaichallenge_data"
-    OUTPUT_DIR = "C:/Users/user/Desktop/서울대/snuaichallenge_data_resized"
+    # Default parameters (relative paths for cross-platform compatibility)
+    DATA_DIR = "./snuaichallenge_data"
+    OUTPUT_DIR = "./snuaichallenge_data_resized"
     MAX_DIM = 448 # Default max dimension (multiple of 28 is best for Qwen2-VL)
     
     print("--- Starting Image Pre-resize Caching Script ---")
