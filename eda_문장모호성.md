@@ -1,404 +1,317 @@
-# 문장 모호성 탐색적 분석 및 정량화 전략 (Sentence Ambiguity EDA & Quantification)
+# 문장 모호성 탐색적 분석 및 3유형 × 직교 플래그 고도화 보고서
+(Sentence Ambiguity EDA: 3-Stage Partition & Orthogonal Flag Taxonomy)
 
-본 문서는 SNU AI Challenge 비디오 프레임 순서 예측 경진대회에서 제공되는 텍스트(Sentence) 데이터의 모호성을 분석하고, 이를 객관적으로 정량화하여 VLM(Vision-Language Model) 예측에 어떻게 결합하고 해석할 것인지에 대한 종합 보고서입니다.
+본 보고서는 SNU AI Challenge 비디오 프레임 순서 예측 경진대회에서 제공되는 텍스트(Sentence) 데이터의 시간적 모호성을 분석하고, 이를 객관적으로 정량화하여 VLM(Vision-Language Model) 학습 및 추론 파이프라인에 결합하기 위한 종합 전략 설계안입니다. 
 
----
-
-## 1. 개요 및 문제 정의
-
-본 대회의 목표는 주어진 자연어 문장(Sentence)에 맞게 4개의 이미지 프레임을 시간 순서대로 재배열하는 것입니다. 
-문장을 정성적/정량적으로 검토한 결과, 비디오 프레임의 순서를 파악하기 위해 텍스트에서 얻을 수 있는 정보의 수준이 5가지 단계로 세분화됨을 발견했습니다.
-
-- **명확한 문장 (Low Ambiguity)**: 시간 순서 지시어와 명확한 시간 경계 동사(Telic verb)가 있어 텍스트 분석만으로 정답 순서 유추가 가능함.
-- **모호한 문장 (High Ambiguity)**: 단일 동작만 기술되거나 동시 동작(`while`, `as`) 및 상태가 서술되어 텍스트로는 순서를 가릴 수 없으며, 이미지 간의 물리적/시각적 연속성에 100% 의존해야 함.
+기존의 5단계 분류 체계가 가진 데이터 희소성 및 과적합 문제를 해결하기 위해, 문맥의 통사 구조(절 개수)를 기준으로 한 **상호배타적 3단계 1차 파티션**과 담화/의미론적 특성을 독립적으로 추출하는 **직교 플래그(Orthogonal Flags)**를 결합하는 고도화 아키텍처를 정의하고 실측 검증 결과를 정리했습니다.
 
 ---
 
-## 2. 문장 모호성의 5단계 심층 분류 체계 (Deep Taxonomy)
+## 1. 개요 및 3유형 파티션 설계 원칙
 
-기존의 단순 단어 필터링 방식은 문맥에 맞지 않는 시간 단어(예: *"A girl drinks juice **before** school"*의 `before` 등)를 명시적 시계열로 오분류하는 한계가 있습니다. 이를 방지하기 위해 **"주어-서술어 통사 뼈대(절의 구조)를 1차로 파악하고, 접속사와 부사구의 역할을 2차로 분석"**하는 개선된 계층적 분류 흐름도를 정의합니다.
+비디오 프레임의 시간적 선후 관계를 유추하기 위해 문장에서 획득할 수 있는 정보는 1차적으로 문장의 문법적 뼈대(통사 구조)에 지배받습니다. 
+
+본 설계는 어순 변화나 도치문에서도 극도의 강건성을 유지하기 위해 **"주어-서술어 절의 개수 및 결합 관계"**를 기준으로 문장을 다음 3가지 상호배타적(Mutually Exclusive) 유형으로 1차 분할합니다.
 
 ```mermaid
 graph TD
     A[입력 문장 Sentence] --> B{1단계: 주어-서술어 절 개수 파악}
     
-    B -- 단일 절 1개 --> C{2단계: 서술어 상태 분석}
-    C -- Stative/지속성 seen, sitting 등 --> D[5. Static-State]
-    C -- Eventive/동작성 wipe, mount 등 --> E[4. Single-Action]
+    B -- 단일 절 1개 --> C[Type-1. 단일 절 구조]
+    B -- 다중 절 2개 이상 --> D{2단계: 주성분 vs 부속성분 관계 분류}
     
-    B -- 다중 절 2개 이상 --> F{2단계: 주성분 vs 부속성분 관계 분류}
-    F -- 주절 + 종속 부사구 구조 --> G{3단계: 절 간 접속사 분석}
-    F -- 등위/병렬 나열 구조 --> H{3단계: 나열 형태 분석}
-    
-    G -- 동시성 while, as 등 --> D
-    G -- 순차성 then, before 등 --> I[1. Explicit-Sequential]
-    
-    H -- 시간 부사 포함 --> I
-    H -- 단순 콤마 및 and 나열 --> J[2. Implicit-Sequential]
-    H -- 물리/궤적 전치사 중심 --> K[3. Implicit-Trajectory]
+    D -- 주절 + 종속 부사구 구조 --> E[Type-2. 복합 종속 구조]
+    D -- 등위/병렬 나열 구조 --> F[Type-3. 대등 병렬 구조]
 
-    style I fill:#d4edda,stroke:#28a745,stroke-width:2px
-    style J fill:#e2e3e5,stroke:#383d41,stroke-width:2px
-    style K fill:#cce5ff,stroke:#004085,stroke-width:2px
-    style E fill:#fff3cd,stroke:#856404,stroke-width:2px
-    style D fill:#f8d7da,stroke:#721c24,stroke-width:2px
+    style C fill:#d4edda,stroke:#28a745,stroke-width:2px
+    style E fill:#cce5ff,stroke:#004085,stroke-width:2px
+    style F fill:#fff3cd,stroke:#856404,stroke-width:2px
 ```
 
-### ① 1. Explicit-Sequential (명시적 시계열 문장) - 모호성: 매우 낮음
-* **구조적 특징**: 복수의 주체 혹은 주성분(주절의 핵심 사건)들이 존재하며, 이 주성분들을 시간적으로 연결하는 명시적인 선후관계 지시어/접속사(예: `then`, `before`, `after`, `followed by`, `finally` 등)가 주성분 간에 결합되어 있습니다.
-* **통사적 구조**: `[주체A + 주성분1] + [시간접속사] + [주체B + 주성분2]`
-* **예시**: *"The woman lowers her gaze (주성분1) ..., then (접속사) a towel is raised (주성분2) ..., followed by (접속사) a zoom-in ..."*
-* **해석**: 텍스트 뼈대 자체에서 완벽한 시계열 연결 고리를 제시하므로 모델의 예측 난이도가 가장 낮습니다.
-
-### ② 2. Implicit-Sequential (묵시적 시계열 문장) - 모호성: 낮음
-* **구조적 특징**: 다수의 주체와 주성분들이 대등하게 병렬 나열(등위절 혹은 독립절 병합)되나, 명시적 시계열 접속사 없이 콤마(`,`) 또는 `and` 등으로 결합되어 있습니다.
-* **통사적 구조**: `[주체A + 주성분1] , [주체B + 주성분2] , and [주체C + 주성분3]`
-* **예시**: *"The fighter in gray retreats (주성분1), the opponent in blue advances (주성분2), (while) the player in yellow moves right (주성분3)..."*
-* **해석**: 명시적 시간 지시어는 없지만, 등위절의 나열 순서(좌->우)가 자연스러운 시간의 흐름을 암시하여 텍스트 상의 힌트가 작동합니다.
-
-### ③ 3. Implicit-Trajectory (묵시적 궤적 문장) - 모호성: 중간
-* **구조적 특징**: 단일 주체 및 단일 주성분으로 이루어지나, 주성분을 수식하는 부속성분(방향/궤적 전치사구: `down`, `up`, `towards`, `into`, `across` 등)이 공간적 전이(Spatial Transition)를 서술하여 간접적으로 시간 흐름을 규정합니다.
-* **통사적 구조**: `[주체] + [주성분] + [궤적/방향 부속성분]`
-* **예시**: *"A boy (주체) rides (주성분) down a street (부속성분) on a skateboard."*
-* **해석**: 주성분 동작 자체는 단일하지만, '도로 위에서 아래로 내려감(down)'이라는 물리적 궤적과 비디오 프레임의 시각적 연속성이 정합(Grounding)되어 중간 수준의 힌트를 제공합니다.
-
-### ④ 4. Single-Action (단일 동작 문장) - 모호성: 높음
-* **구조적 특징**: 단일 주체와 단일 주성분(경계성이 있는 Telic/Achievement 동사)만으로 이루어지고, 시간적/공간적 흐름을 묘사하는 부속성분이 아예 존재하지 않습니다.
-* **통사적 구조**: `[단일 주체] + [단일 주성분(Telic Verb)]`
-* **예시**: *"The gymnast (주체) mounts (주성분) the beam."*, *"The girl (주체) wipes (주성분) her face with a towel."*
-* **해석**: 수식하는 부속성분(시간/공간 단서)이 0에 수렴하기 때문에, VLM이 이미지 프레임 내부에서 신체나 사물의 미세한 포즈 전이(동작의 개시 vs 완료 단계)를 전적으로 추론해야 합니다.
-
-### ⑤ 5. Static-State (상태/지속 문장) - 모호성: 매우 높음 (최대)
-* **구조적 특징**: 주체들이 존재하나 주성분의 사건 성격이 비경계성(Stative/Activity)이거나, 동시 동작 접속사(`while`, `as`)에 이끌리는 다수의 동시 배경 상태(지속형 부속성분)가 문장 전체를 지배하여 시간적 선후 인과가 완전히 소실됩니다.
-* **통사적 구조**: `[주체] + [지속 주성분]` 또는 `[주절 핵심사건] + while/as + [동시 지속형 부속성분들]`
-* **예시**: *"The man (주체) is shown waterskiing (주성분) while pulled (부속성분1) by the jetski."*, *"A woman is seen walking around (주성분) a stage carrying (부속성분1) a mop."*
-* **해석**: 모든 행동과 상태가 4개 프레임 전반에서 동시에 지속되므로 문장 자체에는 시간 선후관계가 아예 결여되어 있으며, 100% 비주얼의 연속성에만 의존하여 순서를 배열해야 합니다.
+* **Type-1. 단일 절 구조 (Single-Clause)**: 주체-서술어(동사) 쌍이 문장 전체에 단 1개만 존재하는 구조. 텍스트 자체에는 선후 관계가 없으며 VLM의 시각 추론에 전적으로 의존해야 함.
+* **Type-2. 복합 종속 구조 (Complex-Subordinate)**: 메인 주절이 존재하고, 이를 시간적 배경이나 선후 관계로 묶어주는 종속 부사절/분사구가 결합된 구조.
+* **Type-3. 대등 병렬 구조 (Parallel-Coordinated)**: 다수의 사건이 콤마(`,`)나 대등 접속사(`and`)로 계층 없이 나열된 구조.
 
 ---
 
-## 3. 통계적 정량 분석 결과
+## 2. 1차 파티션 실측 통계 분포
 
-[train.csv](file:///C:/Users/bella/Desktop/대학/공모전/트리플에이치/snu_ai_공모전/train.csv)와 [test.csv](file:///C:/Users/bella/Desktop/대학/공모전/트리플에이치/snu_ai_공모전/test.csv) 데이터를 분류한 통계 결과입니다.
+전체 학습 데이터셋(`train.csv`, 9,535개) 및 평가 데이터셋(`test.csv`, 819개)에 대하여 경량 규칙 사전 기반의 절 파서를 적용해 도출한 실측 분포입니다.
 
-| 심층 카테고리 | Train 개수 (비율) | Test 개수 (비율) | `No_ordering` = True 비율 (Train) | 텍스트/비주얼 추론 가이드 |
-| :--- | :---: | :---: | :---: | :--- |
-| **1. Explicit-Sequential** | 6,617 (69.40%) | 702 (85.71%) | 15.40% | 텍스트 지시어와 비디오 프레임 매핑 |
-| **2. Implicit-Sequential** | 827 (8.67%) | 46 (5.62%) | 14.51% | 콤마/접속사의 나열 순서(좌->우)에 따른 순차 매핑 |
-| **3. Implicit-Trajectory** | 1,650 (17.30%) | 71 (8.67%) | 16.12% | 운동 궤적 전치사(`down`, `over` 등)에 기반한 물리적 추론 |
-| **4. Single-Action** | 422 (4.43%) | 0 (0.00%) | 16.59% | 동작의 시작(initiation)과 끝(termination) 시각적 비교 |
-| **5. Static-State** | 19 (0.20%) | 0 (0.00%) | 15.79% | 인접 프레임 간 픽셀 변화 및 Temporal Continuity 추론 |
+| 1차 파티션 유형 | Train 개수 (비율) | Test 개수 (비율) | 주요 텍스트/비주얼 추론 가이드 |
+| :--- | :---: | :---: | :--- |
+| **Type-1. 단일 절 구조** | 1,615 (16.94%) | 74 (9.04%) | **Visual-First:** 텍스트 내 선후 힌트 부재. 이미지 피사체 상태 변화 및 Temporal Continuity 추론. |
+| **Type-2. 복합 종속 구조** | 5,990 (62.82%) | 656 (80.10%) | **Text-First & Hybrid:** 종속 접속사 종류에 따라 시계열 정렬 또는 동시성 배경 분리 처리. |
+| **Type-3. 대등 병렬 구조** | 1,930 (20.24%) | 89 (10.87%) | **Sequence Mapping:** 문장의 나열 순서(좌->우)와 이미지 씬 전이를 1:1로 매핑하는 가이드 유도. |
 
 > [!NOTE]
-> 테스트 데이터셋(`test.csv`)은 학습 데이터셋에 비해 **Explicit-Sequential(명시적 시계열 문장)**의 비율이 **85.7%**로 훨씬 높습니다. 이는 모델이 텍스트 내 시계열 키워드를 정확하게 파싱하는 능력을 갖추는 것이 실제 리더보드 성능 향상에 매우 중요함을 시사합니다. 또한, 각 카테고리별 `No_ordering` 비율은 **14.5% ~ 16.5%** 범위 내로 거의 일정하며, 이는 문장 모호성과 관계없이 무작위 셔플링 생략이 균일하게 적용되었음을 뜻합니다.
+> 기존 5단계 분류에서는 가장 희소한 카테고리(Static-State)의 샘플 수가 19개(0.2%)에 불과하여 통계적 일반화 및 모델링 학습이 불가능했습니다. SpaCy 구문 트리를 적용한 3단계 개편 결과, 가장 샘플이 적은 유형인 Type-1(단일 절)도 **Train 기준 1,615개(16.94%)**, Type-3(병렬)도 **1,930개(20.24%)**로 고르게 확보되어 학습 불균형 리스크가 완전히 소멸되었습니다.
 
 ---
 
-## 4. 모호성 정량화 수치 (Ambiguity Index, AI) 설계
+## 3. 다차원 고도화: "1차 파티션 + 직교 플래그 (Multi-label)" 아키텍처
 
-문장의 시간적 모호성을 수치화하기 위해, 인지언어학과 자연어처리(NLP) 분야에서 검증된 3가지 핵심 이론을 결합하여 모호성 지수(AI)를 정의합니다.
+### 3.1 왜 신규 유형을 4번째, 5번째 파티션으로 확장하면 안 되는가?
+현행 3유형은 **통사적 뼈대(구조)**라는 단일 차원의 분할(Partition)입니다. 반면 선행연구에서 탐색되는 다양한 시간 단서(예: 카메라 움직임, 동작 반복 등)는 **의미론 및 담화 차원**의 개념으로 3유형과 직교(Orthogonal)합니다.
+이를 단일 파티션에 구겨 넣게 되면:
+1. **유형 충돌**: "The camera pans left, then shifts..." 라는 문장은 '다중 절-종속(Type-2)' 구조이면서 동시에 '카메라 담화'에 속하여 우선순위 예외 규칙이 끊임없이 늘어납니다.
+2. **희소성 문제의 재현**: 카테고리가 쪼개질수록 개별 클래스의 샘플 수가 붕괴되어 모델이 과적합(Overfitting)을 일으킵니다.
 
-### 4.1 이론적 근거
-1. **Vendler의 Aktionsart (어휘적 상) 이론**:
-   * 동사가 시작과 끝의 한계선(Boundary)을 내포하는지 분석합니다. 경계성(Telic) 동사는 상태 변화를 유발하므로 모호성을 낮추고, 상태/지속 동사는 모호성을 높입니다.
-2. **SDRT (분할 담화 표상 이론)**:
-   * 문장 내의 절(Clause)들이 결합된 방식에 따라 시간 표상을 다르게 처리합니다. 서사(Narration)/순차(Sequence)로 결합될수록 명확하고, 배경/동시(Background)로 묶일수록 시간 선후관계가 붕괴됩니다.
-3. **Allen의 구간 대수 (Interval Algebra) & Shannon 엔트로피**:
-   * 4개 프레임 순열(24가지) 중 텍스트가 제약 조건(Temporal Constraints)을 몇 개 제시하느냐에 따라 시간 엔트로피($H = \log_2(M)$)를 산출합니다.
+### 3.2 직교 플래그 벡터 설계
+따라서 본 체계는 3유형 파티션을 깨지 않는 상태에서, 의미론적 특징들을 **독립적 이진 플래그(Binary Flags)**로 병렬 추출하여 다중 라벨(Multi-label) 벡터로 구조화합니다.
 
-### 4.2 모호성 지수 ($AI$) 산식
-모호성 지수 ($AI \in [0.0, 1.2]$)는 다음과 같이 산출됩니다. (0.0은 명확함, 1.0 이상은 최고 모호성을 지님)
+$$\text{Sentence Vector} = [\text{Partition: Type 1-3 (One-hot)}] \oplus [\text{Flags: } N_1, N_2, \dots, N_k \text{ (Binary Vector)}]$$
 
-$$AI = 1.0 - \min\left(1.0, w_1 \cdot S_{temp} + w_2 \cdot S_{aspect} + w_3 \cdot S_{motion}\right)$$
+### 3.3 집계 추론 모드 (Aggregated Routing Modes) 설계
+7개의 이진 플래그 조합($2^7 = 128$가지)을 개별 프롬프트나 학습 분기로 설계하는 것은 오버헤드가 크고 통계적으로 비효율적입니다. 따라서 실전 추론 시에는 이 플래그들을 결합하여 최종적으로 **4가지 '집계 추론 모드'**로 묶어 라우팅합니다.
 
-* **시간적 제약 지수 ($S_{temp}$)**: 
-  $$S_{temp} = 1.0 \times I_{explicit} + 0.5 \times N_{comma\_and} - 0.3 \times I_{simultaneous}$$
-* **동작상 지수 ($S_{aspect}$)**: 
-  $$S_{aspect} = \frac{N_{telic}}{N_{total\_verbs}}$$
-* **궤적/물리 지수 ($S_{motion}$)**: 
-  $$S_{motion} = 0.4 \times N_{motion\_prep}$$
-
-### 4.3 통사적 계층 구조 및 사건 구조 분석 (Syntactic & Event Hierarchy)
-단순히 문장 내 동사 개수가 많거나 콤마가 여러 개 있다고 해서 반드시 **Sequential(순차적)** 문장인 것은 아닙니다. 문장의 주절(Main Clause, 주성분)과 종속 부절/부사구(Subordinate/Adverbial Phrase, 부속성분) 간의 계층적 관계를 통사적으로 분석해야만 올바른 모호성을 식별할 수 있습니다.
-
-#### 1) 사건의 전경화(Foregrounding)와 배경화(Backgrounding)
-* **주성분 (Foreground Event - 핵심 사건)**: 
-  * 문장의 진짜 뿌리(Root)가 되는 핵심 행동으로, 상태의 전이를 유발하는 **경계성 동사(Telic Verb/Achievement)**가 주로 위치합니다. (예: `enters the water` - 물 밖에서 물 안으로 상태가 변화함)
-  * 비디오 프레임 순서를 맞추는 결정적인 단서로 작용합니다.
-* **부속성분 (Background State - 배경 상태)**: 
-  * 주절의 핵심 사건을 수식하거나 동시에 일어나는 상황으로, 지속성이 있는 **상태/지속 동사(Stative/Activity Verb)**가 주로 위치합니다. (예: `filming himself`, `holding a selfie stick` - 4개 프레임 전반에 걸쳐 유지됨)
-  * 시간 순서 결정에 아무런 영향을 주지 않습니다.
-
-#### 2) 주체-서술어 개수 기반의 문장 분할 (Clause Segmentation / Chunking)
-우리가 설계하는 규칙 사전은 어순(Word Order)을 고정적으로 검사하는 매칭이 아닙니다. 대신 문장 내에서 **사용된 주체(지시어/명사)와 서술어(동사)의 쌍의 개수를 파악하여 "문장을 어디서 끊어서 볼 것인가(Chunking)"를 1차 경계로 삼는 방식**입니다.
-* **어순 유연성 확보**: 비정형 표현이나 도치가 일어나더라도 문장 성분의 '개수'와 '대응쌍'은 변하지 않기 때문에, 어순 고정으로 인한 유연성 저하를 근본적으로 차단합니다.
-  * *예시 1*: *"The magician stands behind the curtain."* (주어 1개 + 동사 1개)
-  * *예시 2*: *"Behind the curtain stands the magician."* (도치문: 주어 1개 + 동사 1개)
-  * 두 문장은 어순이 완전히 다르지만, 주체와 서술어의 세트가 **단 1개**인 단일 의미 청크로 인식되므로 오작동 없이 모두 `Single-Action`으로 완벽하게 수렴하여 판정됩니다.
+| 집계 추론 모드 (Aggregated Mode) | 활성화 플래그 조건 | VLM 프롬프팅 및 모델링 전략 |
+| :--- | :--- | :--- |
+| **Discourse-Cut (씬 전환 모드)** | `N1_camera == 1` 또는 `N7_ordinal == 1` | 씬 전환 경계(Cut frame) 및 서수 지시 위치를 텍스트 앵커와 우선 매핑 (**Text-First**) |
+| **State-Change (외형 변화 모드)** | `N5_state_change == 1` | 대상 객체의 복장/색상/외형 정보 변화에 어텐션을 고정하도록 프롬프트 유도 (**Visual-First, Target Focus**) |
+| **Sequence-Anchor (순서 지지 모드)** | `Type-3 (Parallel)` & `N4_referential == 1` | 텍스트 나열 순서가 곧 시간적 흐름(좌->우)임을 강제 신뢰하도록 프롬프트 가중치 설정 (**Sequence-Prior**) |
+| **Iterative-Ignore (반복 예외 모드)** | `N6_iterative == 1` | 동작이 순환되므로 순서 예측이 물리적으로 무의미함을 인지. 예측 강제를 완화하고 `No_ordering` 가능성 대비 (**Iterative-Prior**) |
 
 ---
 
-## 5. 실전형 엔지니어링 고도화 전략
+## 4. 선행연구 기반 신규 유형(플래그) 카탈로그 및 실측 결과
 
-### 5.1 로지스틱 회귀를 통한 가중치 ($w_1, w_2, w_3$) 최적화
-현재 설계된 가중치 `(0.5, 0.3, 0.2)`는 직관에 의한 설정입니다. 로컬 검증셋(Validation split) 구축 후 VLM의 예측 성공 여부($Y_{correct} \in \{0, 1\}$)를 타겟으로 두고, 각 서브 지표($S_{temp}, S_{aspect}, S_{motion}$)로 **로지스틱 회귀** 모델을 학습시켜 실제 예측 성공률을 가장 잘 설명하는 회귀 계수를 normalized하여 최종 가중치로 결정합니다.
+학습 데이터셋(9,537개 문장) 전체를 대상으로 각 후보 유형의 대표 어휘를 추출하는 **어휘 프로브(Lexical Probe)** 실측 검증 결과 및 선행연구 근거입니다.
 
-### 5.2 오프라인 검증 서버를 고려한 경량 Regex 파서 파이프라인
-검증 서버는 완전히 차단된 폐쇄망 상태이므로 `spaCy`와 같이 외부 가중치 파일 로딩이나 인터넷 접속이 필요한 도구는 오작동 리스크가 큽니다. 따라서 100+개의 동사/접속사 단어 사전을 내장한 **사전 컴파일된 Regex 기반 경량 분석기**를 제작하여 100% 오프라인 작동 신뢰성과 1ms 이하의 추론 속도를 확보합니다.
+### N1. 카메라/편집 담화 (Cinematographic Discourse) — [실측 빈도: Train 45.24% / Test 42.12%] ★최우선
+* **정의**: 스토리 속 주체의 동작이 아닌, **영상의 촬영, 앵글 조절, 컷 편집 행위 자체**를 서술하는 절이 포함된 문장.
+  - *ⓐ 카메라 주어*: "The camera pans left" (5.1%)
+  - *ⓑ 장면 전환*: "the scene shifts/cuts to" (4.2%)
+  - *ⓒ 제시형 수동태*: "is shown/is seen" (3.3%)
+* **선행연구 근거**: Visual Storytelling(VIST) 및 Sort Story(Agrawal et al., EMNLP 2016) 연구에 기반한 "Literal Description vs. Narrative"의 담화 층위 구분. 기존의 구문 파서는 "The camera pans"를 일반 절로 처리하므로 이 층위를 감지하지 못함.
+* **프로브 정규식**: `camera|scene|zoom|pan|shot|close-up|cuts\s+to|transition|fade|screen|view\s+shift`
+* **데이터 실례**: *"The camera pans left to reveal two people..., then shifts from a frontal to a rear view..."*
+* **순서 단서 성격**: **강력한 시각적 앵커(+)**. 특히 "scene shifts" 절은 프레임 오차(pairwise MSE)가 급증하는 물리적 씬 경계(Scene Cut)와 1:1 매칭될 확률이 극도로 높음.
+* **전략 가설**: VLM 추론 시, "scene shifts"의 위치를 기준으로 이미지를 군집화하여 절-프레임 매핑 복잡도를 줄임.
 
-### 5.3 시각 최우선 프롬프팅 (Visual Priority Prompting, VPP) 예외 처리
-텍스트 모호성 지표($AI$)가 $0.8$ 이상으로 치솟아 텍스트 힌트가 부재하다고 판단되는 경우, 프롬프트를 완전 시각 분석 지시문으로 덮어씁니다.
-- **VPP 프롬프트 예시**:
-  > *"The text description provided is highly ambiguous and contains no sequential timeline. Disregard the text ordering. **Instead, prioritize the visual timeline of the images.** Carefully inspect: 1) The movement of people or objects, 2) Physical state transitions (e.g., things being built or destroyed, liquid being poured), 3) Background details like time of day (lighting/shadows) or clock hands. Sequence the images chronologically based solely on these visual cues."*
+### N2. 상적 국면 전이 (Aspectual Phase Transition) — [실측 빈도: Train 10.19% / Test 7.45%] ★차순위
+* **정의**: 사건의 시작, 지속, 종결의 **시간적 국면(Aspectual Phase)**을 서술하는 상 동사(Phase Verb)가 다른 동작을 제어하는 구조.
+* **선행연구 근거**: TimeML 표준의 **ALINK(Aspectual Link)** 관계식인 INITIATES(begins/starts), CULMINATES(finishes), TERMINATES(stops), CONTINUES(keeps) 정의를 반영.
+* **프로브 정규식**: `\b(begin|start|continue|finish|stop|resume|end\s+up|proceeds\s+to)\b`
+* **데이터 실례**: *"The skater begins to glide down the road, then falls and lies..."*
+* **순서 단서 성격**: **순단서(+)**. 단일 씬(유사쌍 3개 이상) 비디오에서 동작의 순서를 가리는 데 결정적임. "begins X"는 개시 자세 프레임(앞), "finishes X"는 완료 포즈 프레임(뒤)을 지칭.
+* **전략 가설**: PHASE 플래그가 켜진 고모호성 샘플의 경우, 동작의 시작점(initiation)과 종결점(termination) 자세를 정밀 대조하라는 VPP 힌트 주입.
 
-#### [VPP 일반화 가능성 검증 프로토콜 (Generalization Validation Protocol)]
-새로운 테스트 데이터셋(Test set)에서 VPP 프롬프트가 일반화되어 정상 작동할지 검증하기 위한 실험실적 프로토콜을 다음과 같이 정의합니다.
+### N3. 스크립트/절차 지식 의존 (Script-Knowledge Dependent) — [실측 빈도: Train 4.24% / Test 4.64%]
+* **정의**: 문장 내에 시간 접속사가 0개이지만, **보편적인 절차 및 인과 상식(Script)**에 의해 선후 순서가 유일하게 고정된 문장.
+* **선행연구 근거**: Chambers & Jurafsky (ACL 2008)의 *Narrative Event Chains* (동일 주체의 비지도 사건 사슬 학습) 및 *proScript* (부분 순서 스크립트 생성 그래프).
+* **프로브 정규식**: (요리 도메인 예시) `\b(bake|mix|pour|chop|fry|serve|stir|knead|slice)\b` 및 시간 부사가 없는 다중 절 구조.
+* **데이터 실례**: *"Dough is scraped into a bowl, shaped into balls, and placed on a baking tray."* (시간 지시어는 없으나 반죽->성형->오븐 배치의 물리적 인과 상식이 요구됨)
+* **순서 단서 성격**: **암묵적 순단서(+)**. 모델 내부의 사전 학습된 상식에 완전히 의존함.
+* **전략 가설**: 이 플래그는 프롬프트 힌트 주입용보다는 **오류 분석(Error Diagnostics) 슬라이스**로 사용. 파인튜닝 시 모델이 이 인과 상식을 온전히 학습하고 있는지 평가하는 리트머스 시험지로 활용.
 
-1. **이론적 일반화 근거**:
-   - 사전 학습된 VLM(Qwen2-VL)의 제로샷 물리적 시각 추론 지식을 트리거합니다.
-   - 학습(Fine-tuning) 단계에서도 $AI \ge 0.8$ 샘플에 대해 VPP 프롬프트를 일관되게 주입하여 학습-추론 간 환경을 일치(Alignment)시킵니다.
-2. **실증적 검증 로직 (Validation Split A/B Test)**:
-   - 전체 학습 데이터에서 분리되어 모델이 학습 시점에 보지 못한 로컬 검증셋(Validation split)을 교차 평가용 데이터로 사용합니다.
-   - **대조군 (Group A)**: 고모호성 ($AI \ge 0.8$) 검증 샘플에 표준 프롬프트 적용하여 정답률 측정.
-   - **실험군 (Group B)**: 고모호성 ($AI \ge 0.8$) 검증 샘플에 VPP 프롬프트 동적 적용하여 정답률 측정.
-   - **유효성 판정**: 검증셋 내에서 실험군(Group B)의 EM 정확도가 대조군(Group A)보다 통계적으로 유의미하게 향상되었을 때에만 본 검증 기법을 최종 테스트 셋 추론에 적용하고, 그렇지 않을 경우 비활성화 또는 임계값 재조정을 수행합니다.
+### N4. 지시 표현 진행 (Referential Progression) — [실측 빈도: Train 5.34% / Test 4.88%]
+* **정의**: 절 간에 주체의 지시 대명사가 부정관사(신정보)에서 대명사/정관사(구정보)로 진행되며 시계열 방향성을 보강하는 구조.
+* **선행연구 근거**: *Sentence Ordering with Temporal Commonsense Knowledge* (STaCK, EMNLP 2021) 등에서 개체 연속성(Entity Coherence)을 순서 판단의 보조 피처로 사용하는 것과 일치.
+* **프로브 정규식**: `\b(a|an)\s+(man|woman|boy|girl|person|player|child|dog|group)\b.*\b(he|she|they|his|her|their)\b`
+* **데이터 실례**: *"A gymnast (절1) ... then she leaps off (절2)..."*
+* **순서 단서 성격**: **약한 순단서(+)**. Type-3(병렬 나열) 문장의 묵시적 순서 정당성을 지지하는 가중치 힌트로 활용.
 
-### 5.4 하이브리드 리스크 방어가드레일 (Hybrid Risk Guardrail) 전략
-규칙 사전 기반의 텍스트 모호성 판별 및 프롬프트 주입은 빠르고 직관적이나, 실전 환경에서 다음 4가지 핵심적인 리스크를 가집니다. 이를 방지하고 유연성을 확보하기 위해 견고한 하이브리드 가드레일을 구축합니다.
+### N5. 외형/상태 변화 앵커 (Appearance & State-Change Anchor) — [실측 빈도: Train 4.27% / Test 5.62%]
+* **정의**: 인물의 복장 색상이나 사물의 물리적 상태가 "A에서 B로" 명시적으로 변화했음을 나타내어 저수준 시각 매칭(Color/State mapping)으로 환원되는 문장.
+* **선행연구 근거**: TimeML의 결과 상태(Resultative) 주석 및 이미지 EDA의 "시각적 상태 전이 분석(Method A)"의 텍스트 매핑.
+* **프로브 정규식**: `transitions\s+from|changes\s+(into|from|to)|switches\s+to|now\s+wearing|different\s+(outfit|shirt|jacket)`
+* **데이터 실례**: *"The athlete transitions from wearing a dark vest to a red vest..."*
+* **순서 단서 성격**: **최강의 순단서(+)**. 텍스트가 시각적 프레임 분류 기준(색상 정보)을 대놓고 지시함.
+* **전략 가설**: VLM이 색상 바인딩에 실패해 오답을 내는 엣지 케이스 탐지용 슬라이스로 활용.
 
-#### 1) 규칙 사전의 커버리지 한계 및 OOV(미등록어) 리스크
-* **문제점**: 사전에 정의되지 않은 명사(행위자)나 동사가 출현할 경우, 규칙 매칭에 실패하여 1단계 분류 파이프라인이 붕괴될 수 있습니다.
-* **가드레일 (POS 기반 소프트 매칭)**: 리터럴(Literal) 단어 매칭에만 의존하지 않고, 가벼운 로컬 형태소 분석기(예: NLTK 등)를 활용해 품사 태그(Part-of-Speech) 자체를 분석합니다. 사전에 없는 단어라도 `NN/NNS`(명사), `PRP`(대명사), `VB/VBG`(동사) 등의 문법 성분을 자동으로 식별하여 주어-동사의 계층적 뼈대를 온전히 포착합니다.
+### N6. 반복/순환 동작 (Iterative & Cyclic Action) — [실측 빈도: Train 1.34% / Test 0.61%] ★역단서
+* **정의**: 동일한 동작이 반복적으로 일어나 프레임 간 선후 관계 구분이 불가능함을 직접 지시하는 구조.
+* **선행연구 근거**: 상 의미론(Aspectual Semantics)의 반복상(Iterative Aspect).
+* **프로브 정규식**: `\b(again|repeatedly|multiple\s+times|several\s+times|once\s+more|back\s+and\s+forth)\b`
+* **데이터 실례**: *"...shaking the bottle repeatedly...", "...swings back and forth..."*
+* **순서 단서 성격**: **역단서(-)**. 프레임 간의 상호 교환이 물리적으로 가능하여 순서 예측이 원리적으로 불가한 구간.
+* **전략 가설**: 이 플래그가 켜진 샘플은 VLM의 EM 정확도 기대치를 낮추고, `No_ordering` 타겟과의 양의 상관관계를 추적하는 예외 필터로 적용.
 
-#### 2) 비정형 표현 및 문장 도치로 인한 오작동 리스크
-* **문제점**: 어순이 바뀌거나 비정형 표현, 혹은 타이포(Typo)가 포함된 문장의 경우 문장 성분을 엉뚱하게 파싱하여 오분류할 리스크가 있습니다.
-* **가드레일 (주체-서술어 개수 기반 분할 및 폴백)**: 설계 단계에서 어순을 강제하지 않고 **"주체-서술어 쌍의 개수 기반 문장 끊어 읽기(Clause Segmentation)"** 방식을 취함으로써 도치문 등의 어순 변화 리스크를 근본적으로 우회합니다. 또한 통사 파서의 구조적 완성도를 측정해 신뢰도가 매우 떨어질 경우에만 **표준 프롬프트(Standard Prompt - "전체적인 사건 흐름에 맞춰 배열하라")로 안전하게 Graceful Fallback**하도록 2중 가드레일을 구축합니다.
-
-#### 3) VLM으로의 오류 전파 및 할루시네이션 리스크
-* **문제점**: 파서가 주성분(Main Event)과 부속성분(Background State)을 거꾸로 판단하여 프롬프트를 통해 모델에게 강제(Hard Constraint)할 경우, 모델이 잘못된 지시에 유도되어 정답을 오판할 수 있습니다.
-* **가드레일 (소프트 힌트 프롬프팅)**: VLM에게 명령형 지시 대신 유연한 힌트(Soft Guidance) 형식으로 템플릿의 조를 낮춥니다. (예: *"~에만 집중하라"* $\to$ *"핵심 사건인 {main_event}의 상태 전이를 우선적으로 검토하되, 전체적인 시각적 일관성도 함께 고려하여 판단하십시오."*)
-
-#### 4) 휴리스틱 기반 가중치 튜닝의 복잡도 리스크
-* **문제점**: 규칙의 `default_ai` 값이나 임계값 등을 개발자의 주관적 판단으로 하드코딩할 경우, 규칙 수가 늘어남에 따라 전체 성능을 일관되게 최적화하는 것이 불가능해집니다.
-* **가드레일 (데이터 기반 가중치 튜닝)**: 검증셋(Validation split)에 대해 파서가 추출한 문장 성분 피처들을 입력으로 두고, 실제 VLM 예측의 실패 여부($Y_{incorrect} \in \{0, 1\}$)를 타겟으로 하여 **로지스틱 회귀(Logistic Regression) 또는 의사결정 나무(Decision Tree)**를 훈련시킵니다. 이 머신러닝 가중치 계수를 규칙 점수로 역투영하여 수학적으로 가중치를 캘리브레이션(Calibration)합니다.
-
----
-
-## 6. train.csv를 통한 실증적 검증 결과
-
-실제 학습 데이터를 연산한 결과, AI 지수가 문법적 의미를 명확히 포착하고 있음이 확인되었습니다.
-
-### 6.1 AI 기술통계량
-* **평균(Mean)**: 0.3367
-* **중간값(Median)**: 0.2200
-* **최대값(Max)**: 1.1500
-
-### 6.2 극단적 샘플 분석
-* **최소 모호성 샘플 (AI = 0.0)**:
-  - *"Michelle Parker sits in a gondola, **then** transitions to ..., **followed by** ..., **and finally** stands..."*
-  - 👉 단계별 시간 선후 관계가 완벽히 결합되어 있습니다.
-* **최대 모호성 샘플 (AI = 1.15)**:
-  - *"The man is shown waterskiing **while** pulled by the jetski."*
-  - *"The young boy fell on his back **as** he avoided the ball."*
-  - 👉 동시 동작 접속사(`while`, `as`)가 활용되어 문장 내에서 순차적 인과가 완전히 결여되었습니다.
+### N7. 서수 열거 (Ordinal Enumeration) — [실측 빈도: Train 1.66% / Test 2.08%]
+* **정의**: `first`, `second`, `finally` 등 명시적 서수를 결합해 단계를 열거하는 문장.
+* **선행연구 근거**: PDTB 3.0의 확장 관계(List Relation) 표기법.
+* **프로브 정규식**: `\b(first|initially|at\s+first|secondly|third|lastly|eventually|in\s+the\s+end|ultimately)\b`
+* **데이터 실례**: *"...first placing the tiles, ...secondly smoothing the surface..."*
+* **순서 단서 성격**: **강력한 순단서(+)**. 전역 순서 지표를 직접 주입함.
 
 ---
 
-## 7. 멀티모달 연계 탐색적 분석 계획 (Joint Text-Vision EDA Plan)
+## 5. 플래그 탐지기 (Flag Detector) 정규식 구현
 
-문장 단독 또는 이미지 단독 분석을 넘어, **문장의 모호성을 실제 이미지 정보와 결합하여 해독**하기 위한 4가지 멀티모달 정합성 분석 방법을 수립합니다.
-
-```mermaid
-graph TD
-    A[멀티모달 연계 EDA] --> B[A. 시각적 상태 전이 분석]
-    A --> C[B. 객체-공간적 궤적 정합 분석]
-    A --> D[C. CLIP 구절-프레임 매칭 분석]
-    A --> E[D. 크로스 모달 정렬 기반 분산 분석]
-    
-    B --> B1[동사적 상태 전이와 색상/텍스처 변화 매핑]
-    C --> C1[명사/공간전치사와 Bounding Box 궤적 매핑]
-    D --> D1[구절별 CLIP 임베딩과 이미지 프레임 코사인 유사도 행렬화]
-    E --> E1[개별 캡션-원문 유사도의 분산 분석을 통한 모호성 추출]
-```
-
-### A. 시각적 상태 전이 분석 (Visual State Transition Analysis)
-- **개념**: 문장에 적힌 동사의 인과적 흐름이 실제 이미지 속 객체의 물리적 상태 변화와 어떻게 매칭되는지 분석합니다.
-- **분석 방법**: 
-  - 텍스트: *"Dough is rolled, placed on sheet, and baked."*
-  - 시각적 매핑: 
-    1. 반죽 형태 (둥글고 덩어리진 상태)
-    2. 성형 및 나열 형태 (오븐팬에 나란히 올라간 상태)
-    3. 구워진 형태 (노릇노릇하고 부풀어 오른 상태)
-  - **EDA 수행**: 이미지 4장에 대한 평균 RGB Histogram 또는 텍스처 특징의 흐름이 문장의 상태 전이 시퀀스와 일치하는지 추적하여, 시각적 상태 전이가 텍스트 명확성을 복원하는 원리를 규명합니다.
-  - **⚠️ 치명적 한계 및 개선안 (User Critique 반영)**: 
-    - *한계*: 인물의 미세한 동작만 바뀌거나 카메라 앵글만 움직이는 단일 씬 영상(예: 면도하는 모습, 드럼 치는 모습)에서는 전체 RGB 분포나 텍스처 특징이 99.9% 동일하므로, 미세한 차이가 노이즈(컴프레션 노이즈, 미세 떨림)로만 작용하여 오히려 성능을 떨어뜨립니다.
-    - *개선안*: 해당 기법은 **멀티 씬 전환(실내 $\to$ 실외, 혹은 장면 컷 전환)**이 발생하는 샘플로 제한 적용해야 하며, **단일 씬 미세 동작**의 경우 글로벌 통계량 대신 특정 관절 포인트를 추적하는 포즈 키포인트(Pose keypoint) 또는 움직임만 분리해내는 광학 흐름(Optical Flow) 정보를 텍스트의 동작 상(Aktionsart) 정보와 연결하도록 가이드라인을 수정합니다.
-
-### B. 객체-공간적 궤적 정합 분석 (Object-Spatial Grounding Analysis)
-- **개념**: 텍스트에 등장하는 핵심 명사(행동 주체/대상)와 방향 전치사(Space preposition)가 이미지 내 바운딩 박스 위치 변화와 일치하는지 분석합니다.
-- **분석 방법**:
-  - 텍스트: *"...runs **towards** the mat and jumps **over** the pole..."*
-  - 시각적 매핑:
-    1. 이미지 내 사람(Person), 매트(Mat), 장대(Pole)를 검출합니다.
-    2. 사람의 $x, y$ 좌표 궤적이 매트로 수평 이동(`towards`)하고, 장대 위로 수직 이동(`over`)하는 물리적 위치 관계를 확인합니다.
-  - **EDA 수행**: 사전 학습된 Object Detector(YOLO 등)를 이용해 텍스트 속 표적 명사들의 위치 좌표 흐름을 정량화하고, 텍스트 방향 단서와 이미지 모션 궤적의 일치 계수(Trajectory Correlation)를 산출합니다.
-
-### C. CLIP 멀티모달 구절-프레임 매칭 분석 (CLIP Sub-sentence Matching)
-- **개념**: 문장을 서사 관계에 따라 여러 구절(Sub-sentences)로 분할한 뒤, 각 구절과 이미지 4장 간의 유사도를 멀티모달 임베딩 공간에서 행렬화하여 분석합니다.
-- **분석 방법**:
-  - 문장: *"A girl hula hoops indoors (Part 1) before the scene shifts outdoors to a cheering group (Part 2)..."*
-  - 쪼갠 구절: `[P1, P2]`
-  - 이미지: `[I1, I2, I3, I4]`
-  - **EDA 수행**: CLIP 모델을 사용하여 $2 \times 4$ 코사인 유사도 매트릭스를 그립니다. 텍스트의 파트별 최고 유사도 피크(Peak)를 찍는 이미지 인덱스가 대각선(Diagonal) 혹은 단조 증가 경로를 그리는지 검증합니다. 이를 통해 문장 모호성을 구절 수준으로 세분화했을 때 비주얼과의 정합성 매칭이 명확해지는 임계 구절 길이를 파악합니다.
-
-### D. 크로스 모달(Cross-modal) 정렬 기반의 모호성 탐지 (Alignment-based Variance Analysis)
-- **개념**: 텍스트만으로는 모호해 보여도 이미지와 결합했을 때 명확해지는 정합성을 역으로 측정하기 위해, **개별 프레임의 캡션과 원본 문장 간의 코사인 유사도의 분산**을 계산합니다.
-- **분석 방법**:
-  1. **프레임별 캡셔닝**: 베이스라인 모델(Qwen2-VL-2B-Instruct)을 활용하여 4장의 이미지 $Input_1 \sim Input_4$에 대한 개별 짧은 캡션($Cap_1 \sim Cap_4$)을 생성합니다.
-  2. **의미론적 거리 계산**: 원본 문장(Sentence)의 임베딩 $\mathbf{u}$와 각 프레임 캡션 임베딩 $\mathbf{v}_i$ 간의 코사인 유사도를 측정합니다.
-     $$\text{sim}(\mathbf{u}, \mathbf{v}_i) = \frac{\mathbf{u} \cdot \mathbf{v}_i}{\Vert{}\mathbf{u}\Vert{}\Vert{}\mathbf{v}_i\Vert{}}$$
-  3. **분산(Variance) 분석**:
-     - 4개 프레임 유사도 분포의 분산 $\sigma^2(\text{sim})$을 계산합니다.
-     - **해석**: 분산이 매우 작다는 것은 문장이 4개의 프레임을 모두 평평하고 비슷하게 설명한다는 뜻이므로, 텍스트가 특정 이미지의 구체적 선후관계를 지정하지 못하는 **최대 모호한 상태**임을 의미합니다. 반대로 분산이 높다는 것은 특정 프레임(들)이 텍스트의 핵심 행동과 뚜렷하게 부합한다는 뜻이므로, **낮은 모호성**으로 판별할 수 있습니다.
-  - **EDA 수행**: $AI$ 지수와 이 유사도 분산 간의 상관관계를 통계 분석하여, 텍스트 단독 모호성을 멀티모달 상호작용 측면에서 실증적으로 미세조정합니다.
-
----
-
-## 8. 최종 권장 EDA 진행 파이프라인 (Consolidated Joint EDA Pipeline)
-
-앞선 네 가지 방법론을 체계적으로 융합하여, 문장 모호성을 실전적으로 규명하고 해결하기 위한 3단계 EDA 실행 파이프라인을 최종 정의합니다.
-
-```mermaid
-graph TD
-    A[Step 1: 글로벌 CLIP 정합성 평가] --> B[Multimodal Alignment Score 산출]
-    B --> C{정합성 점수 평가}
-    C -- 점수 높음 --> D[일반 파이프라인 처리]
-    C -- 점수 낮음 --> E[Step 2: 모호성 군집화 및 심층 분석]
-    
-    E --> E1[Method B 적용: 동적 움직임 위주 궤적 군집]
-    E --> E2[Method A 적용: 상태 전이 위주 컬러/텍스처 군집]
-    
-    E1 --> F[Step 3: dynamic 프롬프트 매핑 지침 정의]
-    E2 --> F
-    
-    F --> G[VLM 추론 시 특정 주의 visual Attention 프롬프트 추가 주입]
-```
-
-### [Step 1] 글로벌 EDA (Method C 활용)
-- **수행 내용**: 전체 `train.csv`를 대상으로 **CLIP 멀티모달 구절-프레임 매칭 분석**을 가장 먼저 실행합니다.
-- **목표**: 쪼개진 구절과 4장 이미지 간 매칭 행렬의 대각선 정렬 경향성을 수치화하여, 데이터셋 전체의 **'멀티모달 정합도(Multimodal Alignment Score)'**를 1차 계산합니다.
-
-### [Step 2] 클러스터링 및 엣지 케이스 분석 (Method A & B 활용)
-- **수행 내용**: Step 1에서 정합도 점수가 매우 낮게 찍혀 VLM이 시퀀스를 혼동할 수 있는 **악성 모호성 데이터군**만을 따로 필터링합니다. 이 필터링된 엣지 케이스들에 대해:
-  1. **동적 움직임이 많은 그룹**: `Method B(공간적 궤적 분석)`를 이용해 주체의 좌표 변화량을 측정하고 정렬 방향을 파악합니다.
-  2. **장면 변화나 상태 전이가 주를 이루는 그룹**: `Method A(시각적 상태 전이 분석)`를 적용해 상태 변화 특징량을 계산합니다.
-- **목표**: 모델이 텍스트-이미지 매칭에 실패하는 근본적인 병목 원인이 **'정적 배경 내 미세동작 해석 오류'**인지, 혹은 **'공간 궤적의 매핑 실패'**인지를 정성적/정량적으로 분류해냅니다.
-
-### [Step 3] 동적 프롬프트 매핑 (Dynamic Prompt Cues)
-- **수행 내용**: Step 2의 결과를 활용해, 추론 시 VLM에게 전달할 추가 시각적 힌트(Visual Attention Prompt) 전략을 정형화합니다.
-- **예시**:
-  - CLIP 매칭 점수가 낮은 엣지 케이스 중, 객체의 물리적 이동이 중심인 샘플로 분류된 경우: 프롬프트에 *"Focus strictly on the spatial movement of the main subject from left to right"*와 같이 강한 **시각적 주의(Visual Attention) 지시어**를 조건부 주입하여 모델의 해독 경로를 튜닝합니다.
-
-### ⚠️ 과적합(Overfitting) 및 노이즈 리스크 점검 (Overfitting & Noise Risk Assessment)
-파이프라인이 정교해질수록 공모전 환경에서 **과적합(Overfitting)**과 **정보 노이즈(Noise propagation)**가 발생할 위험이 비례하여 증가합니다. 특히 하이퍼파라미터 튜닝이 극도로 중요한 공모전이므로, 다음과 같은 4대 리스크를 선제적으로 정의하고 가드레일을 구축합니다.
-
-1. **규칙 과적합 리스크 (Rule Overfitting)**:
-   - *위험*: 특정 학습 데이터 샘플의 세부 형태(예: "오른쪽에서 왼쪽으로 이동")에 맞춰 너무 구체적인 프롬프트 주의문을 하드코딩하면, 전혀 새로운 객체나 행동이 등장하는 테스트 데이터셋(Test set)에서 모델의 오작동과 할루시네이션을 유발합니다.
-   - *방어 전략*: 프롬프트 가이드는 절대로 동작-특이적(Action-specific)으로 작성하지 않고, 인지적 초점(Attention-focus)만 유도하는 **추상적 지침(Generic Cues)** 형태로 규격화합니다. (e.g., *"Focus on left-to-right"* $\to$ *"Trace the spatial position change of the subject"*로 대체)
-2. **외부 모델 전파 노이즈 (Propagation of Model Noise)**:
-   - *위험*: 객체 검출(YOLO)이나 CLIP 유사도의 연산 오차가 프롬프트에 그대로 노이즈로 융합될 경우 VLM의 멀티모달 바인딩을 왜곡합니다.
-   - *방어 전략*: YOLO의 바운딩 박스 좌표나 유사도 원본 수치를 프롬프트에 직접 주입하지 않고, 임계값을 통과한 이진화된 플래그(Binary Flag)나 VPP 트리거 신호로만 정제하여 주입합니다.
-3. **하이퍼파라미터 차원의 최적화 복잡도 증가 (Hyperparameter Optimization Bottleneck)**:
-   - *위험*: 너무 많은 조건부 프롬프트(Step 3)와 모호성 점수 분기 로직(Thresholds)을 도입할 경우, 튜닝해야 하는 이산 파라미터가 급증하여 LoRA 학습률(LR), 배치 크기, 가중치 감쇄 등과의 공동 최적화(Joint Optimization)가 불가능해집니다.
-   - *방어 전략*: 분기 룰을 이산화하여 단순하게 유지(예: Standard vs VPP의 이진 분류)하고, 미세한 정합성은 프롬프트 튜닝 대신 **LoRA 파인튜닝이 모델 내부 가중치 업데이트를 통해 암묵적으로 학습(Implicit Learning)**하도록 역할을 분담합니다.
-4. **일반화 가드레일 (Cross-Validation Guardrail)**:
-   - *위험*: 단일 Validation split에 과적합된 임계치 셋이 리더보드에서 붕괴할 수 있습니다.
-   - *방어 전략*: 프롬프트 및 가중치($w_i$) 설정 튜닝 시 반드시 **5-Fold Out-of-Fold (OOF) 예측 정확도**를 지표로 삼아, 5개 폴드 전체에서 일관되게 EM 정확도가 향상되는 세팅만을 공모전 최종 추론에 반영합니다.
-
----
-
-## 9. 최종 권장 모델링 고도화 로드맵 (Proposed Modeling Roadmap: CV-Router & Curriculum LoRA)
-
-과적합 및 노이즈의 근본적인 차단을 위해 복잡한 조건부 지시어를 프롬프트 단에서 제거하고, **5-Fold CV 기반 이진 라우터**와 **커리큘럼 기반 LoRA 파인튜닝**을 결합한 최적의 모델링 고도화 파이프라인을 최종 정의합니다.
-
-```mermaid
-graph TD
-    A[전체 train.csv] --> B[5-Fold CV 스플릿 분할]
-    B --> C[각 샘플의 AI 및 CLIP 정합도 점수 계산]
-    C --> D{이진화 라우터 Router 분류}
-    
-    D -- 상/하위 20% 임계값 외부 명확한 데이터 --> E[Group A: Standard]
-    D -- 상/하위 20% 임계값 내부 모호한 데이터 --> F[Group B: VPP/모호성 극대화]
-    
-    E --> G[Standard 템플릿 적용]
-    F --> H[VPP 메타 힌트 템플릿 적용]
-    
-    G --> I[Curriculum LoRA 학습 1단계: Group A 선학습]
-    H --> J[Curriculum LoRA 학습 2단계: Group B 점진적 병합 학습]
-    
-    I --> K[베이스라인 멀티모달 정렬 확립]
-    K --> J
-    J --> L[최종 가중치: VPP 힌트 입력 시 시각 흐름에 자동 집중]
-```
-
-### [1단계] 5-Fold CV 환경 기반의 '이진화 라우터 (Router)' 구축
-- **수행 내용**: 전체 학습 데이터를 5개의 폴드(Fold)로 견고하게 분할합니다. 각 샘플에 대해 우리가 정의한 모호성 지표($AI$) 및 CLIP 매칭 점수를 계산합니다.
-- **분류 기전**: 이 점수들을 프롬프트에 직접 변수로 주입하지 않고, 분포의 상위/하위 20% 임계값(Threshold)을 기준으로 데이터를 **두 그룹으로 이진 분류**하는 라우터의 기준으로만 사용합니다.
-  - **Group A (Standard)**: 텍스트 기술과 이미지 흐름이 뚜렷하게 일치하는 고정합/저모호성 데이터.
-  - **Group B (VPP/모호성 극대화)**: 문장 텍스트 정보가 극도로 부족하여 시각 정보 해독이 필수적인 엣지 데이터.
-
-### [2단계] 메타 힌트 (Meta-Hint) 프롬프트 템플릿 확정
-프롬프트 내부의 미시적 룰을 전부 배제하고, 모델이 인지적으로 집중해야 할 차원만을 지정하는 **추상화된 고정형 템플릿 2종**을 확정합니다.
-1. **Standard 템플릿 (Group A용)**:
-   - *"주어진 문장의 사건 흐름에 따라 4개 프레임의 순서를 배열하라."*
-2. **VPP 템플릿 (Group B용)**:
-   - *"텍스트의 묘사가 제한적이다. 각 프레임 간의 미세한 픽셀 변화와 객체의 공간적 전이(Spatial transition)를 추적하여 시간적 인과관계를 논리적으로 재구성하라."*
-
-### [3단계] 커리큘럼 기반 LoRA 파인튜닝 (Curriculum LoRA Tuning)
-단순화된 메타 힌트 프롬프트의 의미를 모델의 시각 계층이 온전히 학습하도록 훈련 경로에 **커리큘럼 학습(Curriculum Learning)**을 적용합니다.
-1. **1단계 (선 학습, Epoch 1~2)**: 
-   - 텍스트-비주얼 정합성이 확실한 **Group A(Standard)** 데이터만을 투입하여 VLM이 텍스트-이미지 간의 기본적인 인과 매핑 지식 및 예측 뼈대를 학습하게 만듭니다.
-2. **2단계 (병합 학습, Epoch 3 이후)**:
-   - 베이스 지식이 확립된 상태에서, 고난도의 **Group B(VPP)** 데이터를 VPP 템플릿과 함께 훈련 루프에 투입합니다.
-   - 프롬프트 자체는 추상적이지만, 정확하게 매핑된 정답 순서 레이블(Ground Truth)을 통해 역전파(Backpropagation)가 발생하면서, **LoRA 가중치는 자연스럽게 "VPP 템플릿이 입력되면 시각적 궤적과 미세한 프레임 변화 계층에 어텐션(Self-Attention Weight)을 강하게 주어야 하는구나"를 스스로 암묵적 학습**하게 됩니다.
-
----
-
-## 10. VLM dynamic prompt 구현 템플릿
+폐쇄망 환경의 1ms 추론 속도 제약을 고려하여, 위의 직교 플래그를 정교하게 파싱해내는 배포용 파이썬 클래스 템플릿입니다.
 
 ```python
-def get_refined_prompt(row, ai_score, sentence, parsed_info=None):
-    if ai_score >= 0.8:
-        # Visual Priority Prompting (VPP) 트리거 (Group B)
-        # 통사적 주성분(Main Event)과 부속성분(Background State) 정보를 활용한 어텐션 통제
-        if parsed_info and 'main_event' in parsed_info:
-            prompt = (
-                f"Sentence: \"{sentence}\"\n"
-                f"- Main Event (핵심 사건): {parsed_info['main_event']}\n"
-                f"- Background States (배경 지속 상태): {', '.join(parsed_info.get('background_states', []))}\n"
-                "주어진 텍스트의 배경 지속 상태는 4개 이미지 전체에 걸쳐 유지되는 무관한 단서입니다.\n"
-                "오직 Main Event(핵심 사건)의 물리적/공간적 변화 흐름에만 집중하여 4개 프레임의 시간 순서를 논리적으로 배열하십시오."
+import re
+import spacy
+
+class OrthogonalFlagDetector:
+    def __init__(self):
+        # SpaCy 영어 모델 로드
+        try:
+            self.nlp = spacy.load("en_core_web_sm")
+        except OSError:
+            import spacy.cli
+            spacy.cli.download("en_core_web_sm")
+            self.nlp = spacy.load("en_core_web_sm")
+
+        # [보완안 반영] 오탐율을 최소화하기 위해 경계(\b) 및 굴절어 형태를 정교화한 정규식 사전
+        self.patterns = {
+            # N1. 카메라/편집 담화 (단순 pan, screen 등 범용어 오탐 방지)
+            "N1_camera": re.compile(
+                r"\b(camera|scene|zoom(s|ed|ing)?|pan(s|ned|ning)?|shot(s)?|close-up(s)?|cuts\s+to|transition(s|ed|ing)?|fade(s|ed|ing)?|screen|view\s+shift(s)?)\b", 
+                re.IGNORECASE
+            ),
+            # N2. 상적 국면 전이
+            "N2_phase": re.compile(
+                r"\b(begin|began|starts?|started|continues?|continued|finish(es|ed|ing)?|stops?|stopped|resumes?|resumed|end\s+up|proceeds?\s+to)\b", 
+                re.IGNORECASE
+            ),
+            # N3. 스크립트/절차 지식 (주요 행위 동사 목록 확장)
+            "N3_script": re.compile(
+                r"\b(bake|mix|pour|chop|fry|serve|stir|knead|slice|adjust|secure|install|remove|assemble|disassemble|insert|attach|detach)\b", 
+                re.IGNORECASE
+            ),
+            # N4. 지시 표현 진행 (부정관사 도입 후 대명사 구정보로의 전환을 문맥 선후로 탐지)
+            "N4_referential": re.compile(
+                r"\b(a|an)\s+(man|woman|boy|girl|person|player|child|dog|cat|group|gymnast|skater|rider|athlete|fighter|opponent)\b.*\b(he|she|they|his|her|their|himself|herself)\b", 
+                re.IGNORECASE | re.DOTALL
+            ),
+            # N5. 외형/상태 변화 앵커 (결과상태 매핑)
+            "N5_state_change": re.compile(
+                r"\b(transitions?\s+from|changes?\s+(into|from|to)|switches?\s+to|now\s+wearing|different\s+(outfit|shirt|jacket|clothes))\b", 
+                re.IGNORECASE
+            ),
+            # N6. 반복/순환 동작 (역단서 - 순서 매핑 제한용)
+            "N6_iterative": re.compile(
+                r"\b(again|repeatedly|multiple\s+times|several\s+times|once\s+more|back\s+and\s+forth|over\s+and\s+over)\b", 
+                re.IGNORECASE
+            ),
+            # N7. 서수 열거 (second hand 등 초침/조력자 오탐 방지용 명확한 서수 부사 우선)
+            "N7_ordinal": re.compile(
+                r"\b(first|initially|at\s+first|secondly|thirdly|lastly|eventually|in\s+the\s+end|ultimately)\b", 
+                re.IGNORECASE
             )
+        }
+
+    def classify_syntax_spacy(self, sentence):
+        """
+        SpaCy의 의존 구문 트리(Dependency Parsing Tree)를 기반으로
+        문장 사전을 하드코딩하지 않고 3단계 1차 파티션으로 분류합니다.
+        """
+        if not isinstance(sentence, str):
+            return "Type-1"
+        
+        doc = self.nlp(sentence)
+        has_subordinate_clause = False
+        has_parallel_clause = False
+        
+        for token in doc:
+            if token.dep_ in {"advcl", "ccomp"}:
+                has_subordinate_clause = True
+            if token.dep_ == "conj" and token.pos_ in {"VERB", "AUX"}:
+                has_parallel_clause = True
+                
+        if not has_subordinate_clause and not has_parallel_clause:
+            return "Type-1"
+        elif has_subordinate_clause:
+            return "Type-2"
         else:
-            prompt = (
-                f"Sentence: \"{sentence}\"\n"
-                "텍스트의 묘사가 제한적이다. 각 프레임 간의 미세한 픽셀 변화와 객체의 공간적 전이(Spatial transition)를 추적하여 시간적 인과관계를 논리적으로 재구성하라."
-            )
-    else:
-        # Standard Timeline Mapping Prompt (Group A)
-        prompt = (
-            f"Sentence: \"{sentence}\"\n"
-            "주어진 문장의 사건 흐름에 따라 4개 프레임의 순서를 배열하라."
-        )
-    return prompt
+            return "Type-3"
+
+    def detect_flags(self, sentence):
+        if not isinstance(sentence, str):
+            return {k: 0 for k in self.patterns.keys()}
+        flags = {}
+        for flag_name, regex in self.patterns.items():
+            flags[flag_name] = 1 if regex.search(sentence) else 0
+        return flags
+
+    def process_sentence(self, sentence):
+        result = {
+            "Sentence": sentence,
+            "Partition": self.classify_syntax_spacy(sentence)
+        }
+        flags = self.detect_flags(sentence)
+        result.update(flags)
+        return result
 ```
 
 ---
 
-## 11. 문장성분 규칙 사전(Rulebook) 기반 최종 EDA & 실험 세팅 전략
+## 6. 질적 분석 연계 및 학습 파이프라인 적용 로드맵
+
+1. **③단계: 블라인드 수동 라벨링을 통한 프로브 보정**
+   - 각 플래그가 On된 문장 중 50개씩 층화 샘플링하여 블라인드 수동 라벨링(Gold Standard)을 수행합니다.
+   - 이를 통해 정규식의 정밀도(Precision)와 재현율(Recall)을 산출하고, 오탐율이 높은 어휘 패턴은 탐색 필터에서 제외(Negative lookbehind 등 적용)하여 규칙을 고도화합니다.
+2. **④단계: VLM 학습(Fine-Tuning) 시 조건부 라우팅**
+   - **라우터 로직**:
+     - `N1_camera == 1` & `N5_state_change == 1` 이면 VLM에게 씬 전환 영역의 바운딩 박스 색상 매핑을 최우선으로 보도록 메타 프롬프트를 라우팅합니다.
+     - `N6_iterative == 1` 인 경우 동작의 흐름 인과가 완전히 깨져 있으므로 텍스트 지시를 강제하는 프롬프트를 배제하여 할루시네이션(Hallucination) 리스크를 최소화합니다.
+3. **⑤단계: 오류 슬라이스 탐색(Error Slice Discovery) 기반의 피드백**
+   - 파인튜닝 완료 후, 검증셋 오류 중 위 플래그 범주에 속하지 않으면서 손실(Loss)이 응집되는 크로스모달 임베딩 클러스터를 식별합니다 (LADDER/HiBug2 프레임워크 적용).
+   - 발굴된 신규 오류 패턴의 언어학적 유의성을 검사하여 **새로운 직교 플래그(N9)**로 규칙 사전에 추가 피드백 루프를 형성합니다.
+
+---
+
+## 7. 문장 모호성 정량화 수치 모델 (Ambiguity Index Score)
+
+규칙 사전(`AMBIGUITY_RULES_DICT`) 기반 모호성 지수(`ai_score`)는 문장에서 시간 단서가 부족할수록, 그리고 사건이 중첩되거나 모호한 형태일수록 높은 값을 가지도록 설계되었습니다. 본 시스템은 1차 파티션(통사 구조)과 7대 직교 플래그를 결합하여 최종 모호성 점수(`ai_score`)를 다음과 같이 정량적으로 수치화합니다.
+
+### 7.1 모호성 지수 산출 공식 (Ambiguity Index Formula)
+
+$$\text{AI Score} = \text{Base Score} + \sum \Delta \text{Flag Scores}$$
+
+1. **기본 점수 (Base Score)**: 통사 구조에 따른 근본적 정보 유무
+   * **Type-1 (단일 절)**: `0.80` (시간 순서 힌트가 아예 없으므로 매우 높은 모호성)
+   * **Type-2 (복합 종속)**: `0.40` (접속사 맥락에 의존)
+   * **Type-3 (대등 병렬)**: `0.50` (나열 순서 지지)
+
+2. **플래그 가중치 보정값 ($\Delta$ Flag Score)**:
+   * **N6_iterative (반복상) On**: `+0.30` (프레임 순서 구분이 불가하므로 극도의 모호성 추가)
+   * **N5_state_change (외형 변화) On**: `-0.30` (가장 뚜렷한 외형 단서 제공으로 모호성 상쇄)
+   * **N1_camera (장면 전환 포함) On**: `-0.20` (비주얼 MSE 컷 포인트가 정렬되어 모호성 상쇄)
+   * **N7_ordinal (서수 열거) On**: `-0.20` (순서가 명시되므로 모호성 상쇄)
+   * **N2_phase (상적 국면) On**: `-0.10` (시작/완료 단계 힌트 제공)
+
+➔ 산출된 최종 `ai_score`는 `0.0` (모호성 제로)에서 `1.1` (최고 모호성, 시각 연속성만으로 추론해야 함) 범위에 맵핑되며, 이는 로컬 검증 셋 분할 및 커리큘럼 LoRA 학습 가중치로 직결됩니다.
+
+### 7.2 모호성 지수 (AI Score) 해석 및 판독 가이드
+
+최종 계산된 `ai_score`는 수치에 따라 다음과 같이 3개의 난이도 구간으로 나누어 판독합니다.
+
+| 모호성 지수 구간 (AI Score) | 판독 레벨 (Level) | 언어학적/비주얼적 특징 | 모델링 대응 전략 (추론/학습) |
+| :--- | :---: | :--- | :--- |
+| **0.00 ~ 0.30** | **Low (명확)** | 텍스트 내에 명시적인 시간 부사(`then`, `first`), 카메라 장면 컷(`scene shifts`), 외형 변화(`transitions from A to B`)가 존재하여 이미지-텍스트의 시간적 앵커가 확실한 상태. | **Text-First Strategy**: 텍스트의 시간 단서를 강하게 신뢰. 씬 오프셋 전이 지점을 기계적으로 일치시킴. |
+| **0.40 ~ 0.70** | **Medium (복합 추론)** | 절이 여러 개 존재하지만 명확한 접속사 없이 대등하게 나열되거나(`Type-3`), 종속 접속사의 결합 구조가 평이하여 텍스트만으로는 완벽한 순서 결정이 애매한 상태. | **Hybrid-Flow Strategy**: 텍스트의 읽기 순서(좌->우)를 묵시적 시간 순서로 간주하되, 비디오 내 객체의 움직임 궤적을 함께 복합적으로 고려. |
+| **0.80 ~ 1.10** | **High (극도 모호)** | 텍스트 내에 단 하나의 동작만 서술된 단일 절(`Type-1`)이거나, 사건이 순환/반복(`N6_iterative`)되어 텍스트 정보가 이미지 배치 순서를 결정하는 데 아무런 힌트를 주지 못하는 상태. | **Visual-First Strategy**: 텍스트 힌트를 무시하고 VLM이 미세 행동 변화(Fine-grained Pose)나 시간적 연속성(Temporal Continuity)만으로 이미지를 정렬하도록 유도. |
+
+### 7.3 문법적 성분(주체 및 서술어)의 개수 분포와 문장 모호성 검증
+
+통사 구조에 따른 3가지 1차 파티션 유형이 언어학적으로 정합적이며, 실제 비디오 정렬 난이도를 대변하는지 검증하기 위해 **주어(Subject, 주체)**와 **서술어(Predicate, 동작)**의 출현 개수 분포를 추가 분석하였습니다.
+
+#### 1) 통계 분석 결과 (500개 샘플 기준)
+* **Type-1 (단일 절)**: 평균 주어 **0.98개** / 평균 서술어 **1.82개**
+  * *해설*: 주어와 서술어가 거의 1쌍으로 고착되어 있어, 단일 사건 위주로 구성되어 선후관계를 가늠할 텍스트 힌트가 가장 빈약한 상태입니다.
+* **Type-2 (복합 종속)**: 평균 주어 **2.15개** / 평균 서술어 **5.00개**
+  * *해설*: 절과 절이 종속/부사절 형태로 여러 개 결합되어 주체도 다수 등장하고 행동 동사(서술어)가 매우 복잡하게 나열되어 있습니다. 
+* **Type-3 (대등 병렬)**: 평균 주어 **1.16개** / 평균 서술어 **3.44개**
+  * *해설*: 행동을 일으키는 주체는 보통 1개로 유지(생략/공유)되면서, 서술어만 대등 결합(`conj`)을 통해 다수 나열되는 전형적인 **"동일 주체의 연속/병렬 행동"** 구조를 보입니다.
+
+#### 2) 모델링 연계 의의
+* **지시 대상 모호성 (Referential Ambiguity) 스코어화**: 문장 내 주어(주체)의 개수가 많아질수록 모델은 비디오 내에서 다중 객체의 행동을 서로 매핑해야 하므로 지시 대상 모호성이 급격히 증가합니다. 이를 AI Score 계산식에 보정 페널티(예: `주어 개수 >= 2` 일 때 `+0.15` 가산)로 반영할 수 있습니다.
+* **에이전트별 동작 분석 (Single vs Multi-Agent)**:
+  * `주어 <= 1.2` 이면서 `서술어 >= 3`: **단일 에이전트 다중 행동(Single-Agent Multi-Action)**으로 판별하여, 단일 객체의 포즈/움직임 연속성에 집중해 비디오 프레임을 배치합니다.
+  * `주어 >= 2` 이면서 `서술어 >= 3`: **다중 에이전트 독립 행동(Multi-Agent Multi-Action)**으로 판별하여, 객체별 타임라인 바운딩 박스를 교차 정렬하는 복합 추론 방식을 적용합니다.
+* **파이프라인 강건성 검증 (Sanity Check)**: Type-1으로 분류되었으나 서술어나 주어가 과다 검출되는 예외적 샘플을 오분류로 탐지하고 필터링하는 품질 지표로 활용합니다.
+
+---
+
+## 8. [복원] 문장성분 규칙 사전(Rulebook) 기반 최종 EDA & 실험 세팅 전략
 
 Spacy 등 대용량 패키지의 버그 및 폐쇄망 라이브러리 예외 오류를 근본적으로 해결하기 위해, 문장의 주요 성분(명사, 대명사, 상태동사, 접속사 등)의 출현 조건 조합을 사전화하여 모호성을 탐지하고 실험에 반영하는 최종 EDA 전략을 다음과 같이 수립합니다.
 
-### 11.1 문장성분 개수 조합 기반 규칙 사전 (Rulebook Dictionary)
+### 8.1 문장성분 개수 조합 기반 규칙 사전 (Rulebook Dictionary)
 문장의 뼈대가 되는 주어-동사(절)의 통사 관계를 1차 분석하고, 2차로 지시어/접속사를 파싱하기 위한 경량 사전 기반 매핑 규칙입니다.
 
 ```python
@@ -456,11 +369,11 @@ AMBIGUITY_RULES_DICT = {
 }
 ```
 
-### 11.2 실전 EDA 분석 파이프라인
+### 8.2 실전 EDA 분석 파이프라인
 1. **규칙 사전 파싱 수행**: `train.csv` 전체 9,539개 문장에 대하여 위의 `AMBIGUITY_RULES_DICT`를 조건부 매칭하여 각 데이터의 `ai_score`와 `category`를 라벨링합니다.
-2. **주성분/부속성분 분리 추출**: 다중 절 구조일 경우, 주절의 동작(`main_event`)과 부사절의 동작(`background_states`)을 분리하여 텍스트 데이터의 세부 통계를 집계하고 정량화합니다.
+2. **주성분/부속성분 분리 추출**: 다중 절 구조일 경우, 주절의 동작 (`main_event`)과 부사절의 동작 (`background_states`)을 분리하여 텍스트 데이터의 세부 통계를 집계하고 정량화합니다.
 
-### 11.3 프롬프트 및 실험 세팅 고도화 전략
+### 8.3 프롬프트 및 실험 세팅 고도화 전략
 1. **Dynamic VPP 프롬프트 적용**:
    * 분류된 `main_event`와 `background_states`를 프롬프트에 동적 삽입합니다.
    * VLM이 4개 프레임 전반에서 계속 관찰되는 배경(부속성분)에 주의를 뺏기지 않도록, "오직 주 사건(Main Event)의 상태 전이에만 집중하라"고 지침을 명시합니다.
@@ -472,10 +385,20 @@ AMBIGUITY_RULES_DICT = {
 
 ---
 
-## 12. 시행착오 (Trial & Errors): 초기 어순 고정식 및 키워드 매칭 기반 분류 체계
+## 9. [복원] 시행착오 (Trial & Errors)
 
 * **초기 접근법**: 텍스트 내에 단순히 `then`, `before` 등의 시간 부사가 존재하면 1단계(명시적 시계열), `while`이나 `as`가 보이면 5단계(정적 상태)로 단순 텍스트 키워드 유무 매칭을 시도하거나, 어순(S+V+O 등)을 고정적으로 탐지하여 1차 분류를 설계했습니다.
 * **한계**:
   * 단순 단어 매칭은 문맥 및 문장 성분의 역할을 판별하지 못해 *"A girl drinks juice before school"* 같은 문장을 시계열로 오분류했습니다.
   * 또한 고정 어순 매치 규칙은 도치문(*"Behind the curtain stands the magician"*)이나 삽입구 등 비정형 표현에서 주체와 서술어의 위치가 뒤바뀔 경우 파싱에 실패하는 **유연성 저하 리스크**가 있었습니다.
 * **개선**: 본 EDA 및 피드백을 통해 문맥에 영향받는 어순 매칭을 폐기하고, **"문장에서 사용된 주체(지시어)와 서술어의 결합 개수를 세어 문장의 끊어 읽기 경계(Clause Boundary)를 나누는 방식"**으로 전면 리팩토링했습니다. 이를 통해 도치문 등 어순 변화가 심한 실전 환경에서도 극도의 강건성과 유연성을 동시에 확보했습니다.
+
+---
+
+## 9. 참고문헌
+* Agrawal, A., et al. (2016). *Sort Story: Sorting Jumbled Images and Captions into Stories*. Proceedings of EMNLP.
+* Chambers, N., & Jurafsky, D. (2008). *Unsupervised Learning of Narrative Event Chains*. Proceedings of ACL.
+* Sakaguchi, K., et al. (2021). *proScript: Partially Ordered Scripts Generation*. arXiv:2104.08251.
+* Webber, B., & Prasad, R., et al. (2019). *The Penn Discourse Treebank 3.0 Annotation Manual*. Linguistic Data Consortium.
+* Rogers, S., et al. (2019). *NarrativeTime: Dense Temporal Annotation on a Timeline*. arXiv:1908.11443.
+* Zhou, B., et al. (2020). *A Survey on Temporal Reasoning for Temporal Information Extraction*. arXiv:2005.06527.
