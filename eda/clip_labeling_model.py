@@ -8,9 +8,10 @@ from tqdm import tqdm
 from itertools import combinations
 from sklearn.preprocessing import QuantileTransformer
 
-# Force stdout to UTF-8 to prevent cp949 encode errors in Windows
+# Force stdout to UTF-8 to prevent cp949 encode errors in Windows (only if supported)
 import sys
-sys.stdout.reconfigure(encoding='utf-8')
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
 
 # Windows/캐글 환경 인증서 우회
 ssl._create_default_https_context = ssl._create_unverified_context
