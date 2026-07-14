@@ -31,11 +31,11 @@ IMAGE_DIR = os.path.join(DATA_DIR, "train")
 CLIP_THRESHOLD = 0.20
 
 def map_similar_pairs_to_cuts(similar_clip_pairs, max_clip):
-    # 엄격 기준 적용: Max 오차가 0.20 미만이면 무조건 0회 장면 전환 (동일 씬)
-    if max_clip < CLIP_THRESHOLD:
+    # 안엄격 기준 적용: 유사쌍 개수 5개 이상이면 0회 장면 전환 (Type 0)
+    if similar_clip_pairs >= 5:
         return 0
     
-    if 2 <= similar_clip_pairs <= 5:
+    if 2 <= similar_clip_pairs <= 4:
         return 1  # 1회 장면 전환 (2개 씬 분할)
     elif similar_clip_pairs == 1:
         return 2  # 2회 장면 전환 (3개 씬 분할)
@@ -170,7 +170,7 @@ def main():
     total_samples = len(res_df)
     for cuts, count in cut_counts.items():
         percentage = (count / total_samples) * 100
-        print(f"  🎬 장면 전환 {cuts}회 비디오: {count:5d}개 ({percentage:.2f}%)")
+        print(f"  🎬 장면 전환 {cuts}회 비디오 (안엄격): {count:5d}개 ({percentage:.2f}%)")
     print("-" * 80)
     print(f"👉 총 분석 비디오 세트 수  : {total_samples:5d}개 (100.00%)")
         

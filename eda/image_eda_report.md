@@ -72,3 +72,5 @@
 
 1. **`eda/clip_labeling_model.py`**
    * **용도**: 캐글 GPU 환경에서 실행하여 9,535개 전체 비디오의 CLIP 피처(Max, Mean, Ratio, Max_scaled, Mean_scaled, 6개 개별 쌍의 CLIP 오차값)와 엄격 기준 장면 전환 횟수를 일괄 추출하여 `snu_clip_features.csv`로 저장해 주는 마스터 스크립트.
+2. **`eda/scene_cut_inspector_strict.py`**
+   * **용도**: 로컬 컴퓨터에서 다운로드한 `snu_clip_features.csv` 파일을 로드하여, 무작위 100개 샘플의 구간별 CLIP 값과 판정 결과(장면 전환 vs 동일 장면)를 실제 사진과 함께 엔터(Enter) 키로 빠르게 검수하는 로컬 GUI 마스터 검수기.
