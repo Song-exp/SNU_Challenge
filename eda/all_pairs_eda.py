@@ -1,5 +1,4 @@
 import os
-import ast
 import sys
 import numpy as np
 import pandas as pd
@@ -29,20 +28,27 @@ def compute_image_mse(img_path1, img_path2):
 
 def process_sample(row):
     sample_id = str(row['Id'])
-    ans = ast.literal_eval(row['Answer'])
+    img_files = [row['Input_1'], row['Input_2'], row['Input_3'], row['Input_4']]
+    img_paths = [os.path.join(IMAGE_DIR, sample_id, f) for f in img_files]
     
-    shuffled_files = [row['Input_1'], row['Input_2'], row['Input_3'], row['Input_4']]
-    ordered_files = [None] * 4
-    for idx, pos in enumerate(ans):
-        ordered_files[pos - 1] = shuffled_files[idx]
+    # 4C2 = 6가지 가능한 쌍의 조합 계산
+    pairs = [
+        (img_paths[0], img_paths[1]),
+        (img_paths[0], img_paths[2]),
+        (img_paths[0], img_paths[3]),
+        (img_paths[1], img_paths[2]),
+        (img_paths[1], img_paths[3]),
+        (img_paths[2], img_paths[3])
+    ]
+    
+    mses = []
+    for p1, p2 in pairs:
+        val = compute_image_mse(p1, p2)
+        if val is None:
+            return None
+        mses.append(val)
         
-    img_paths = [os.path.join(IMAGE_DIR, sample_id, f) for f in ordered_files]
-    
-    mse1 = compute_image_mse(img_paths[0], img_paths[1])
-    mse2 = compute_image_mse(img_paths[1], img_paths[2])
-    mse3 = compute_image_mse(img_paths[2], img_paths[3])
-    
-    return sample_id, mse1, mse2, mse3
+    return sample_id, mses
 
 def main():
     if not os.path.exists(TRAIN_CSV):
@@ -52,28 +58,27 @@ def main():
     print("Loading train.csv...")
     df = pd.read_csv(TRAIN_CSV)
     
-    # 대표 표본이 아닌 전체 9,535개 데이터셋 전수 분석 진행
-    sample_df = df.copy()
-    print(f"Analyzing all {len(sample_df)} samples in the dataset...")
+    print(f"Analyzing all {len(df)} samples using 4C2 combinations (6 pairs per sample)...")
     
     results = []
     with ThreadPoolExecutor(max_workers=16) as executor:
-        futures = [executor.submit(process_sample, row) for _, row in sample_df.iterrows()]
+        futures = [executor.submit(process_sample, row) for _, row in df.iterrows()]
         for f in futures:
             res = f.result()
-            if None not in res[1:]:
+            if res is not None:
                 results.append(res)
                 
     print(f"Successfully processed {len(results)} samples.")
     
+    # 모든 6쌍의 MSE 수집 (총 9,535 * 6 = 57,210개)
     all_mses = []
-    for s_id, m1, m2, m3 in results:
-        all_mses.extend([m1, m2, m3])
+    for s_id, mses in results:
+        all_mses.extend(mses)
         
     all_mses = np.array(all_mses)
     
     print("\n=======================================================")
-    print("1. 픽셀 오차값(MSE) 전체 통계 분포 (3,000개 전환점)")
+    print("1. 4C2 조합 픽셀 오차값(MSE) 전체 통계 분포 (57,210개 쌍)")
     print("=======================================================")
     print(f"최소값 (Min): {all_mses.min():.2f}")
     print(f"25% 백분위수: {np.percentile(all_mses, 25):.2f}")
@@ -85,7 +90,7 @@ def main():
     
     buckets = [0, 500, 1000, 1500, 2000, 3000, 5000, 10000, 30000]
     print("\n=======================================================")
-    print("2. 구간별 전이 오차 빈도 (동일장면 vs 장면전환 판단용)")
+    print("2. 구간별 픽셀 오차 빈도 (동일장면 유사성 판정용)")
     print("=======================================================")
     for i in range(len(buckets) - 1):
         low, high = buckets[i], buckets[i+1]
@@ -93,24 +98,36 @@ def main():
         pct = cnt / len(all_mses) * 100
         print(f"MSE {low:5d} ~ {high:5d} : {cnt:4d}개 ({pct:5.2f}%)")
         
+    # 동일 장면으로 간주하는 임계값을 1200으로 설정
+    # 각 샘플별로 6쌍 중 '유사한 쌍(MSE < 1200)'의 개수를 카운트
     threshold = 1200
     print(f"\n=======================================================")
-    print(f"3. 장면 전환 횟수 분석 (임계값 {threshold} 기준)")
+    print(f"3. 샘플당 유사한 프레임 쌍(MSE < {threshold})의 개수 분포")
     print("=======================================================")
     
-    cut_counts = []
-    for s_id, m1, m2, m3 in results:
-        cuts = 0
-        if m1 >= threshold: cuts += 1
-        if m2 >= threshold: cuts += 1
-        if m3 >= threshold: cuts += 1
-        cut_counts.append(cuts)
+    similar_pairs_counts = []
+    for s_id, mses in results:
+        similar_count = sum(1 for m in mses if m < threshold)
+        similar_pairs_counts.append(similar_count)
         
-    cut_counts = np.array(cut_counts)
-    for i in range(4):
-        cnt = np.sum(cut_counts == i)
-        pct = cnt / len(cut_counts) * 100
-        print(f"유형 {i} (장면 전환 {i}회) : {cnt:4d}개 ({pct:5.2f}%)")
+    similar_pairs_counts = np.array(similar_pairs_counts)
+    
+    # 6개 유사쌍 -> 0 cuts (Type 0)
+    # 3개 유사쌍 -> 1 cut (Type 1)
+    # 1개 유사쌍 -> 2 cuts (Type 2)
+    # 0개 유사쌍 -> 3 cuts (Type 3)
+    # 그 외 노이즈(2, 4, 5개)도 통계에 그대로 출력
+    for i in range(7):
+        cnt = np.sum(similar_pairs_counts == i)
+        pct = cnt / len(similar_pairs_counts) * 100
+        desc = ""
+        if i == 6: desc = " -> 장면 전환 0회 (전체 미세 행동)"
+        elif i == 3: desc = " -> 장면 전환 1회 (2개 씬 분할)"
+        elif i == 1: desc = " -> 장면 전환 2회 (3개 씬 분할)"
+        elif i == 0: desc = " -> 장면 전환 3회 (매 프레임 장면 전환)"
+        else: desc = " -> 전이 노이즈 및 과도기 프레임"
+        
+        print(f"유사한 쌍 {i}개 존재 : {cnt:4d}개 ({pct:5.2f}%){desc}")
 
 if __name__ == "__main__":
     main()
