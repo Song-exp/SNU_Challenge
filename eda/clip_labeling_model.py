@@ -1,3 +1,4 @@
+!pip install -q qwen-vl-utils ftfy regex
 import os
 import ast
 import ssl
@@ -173,6 +174,17 @@ def main():
     print("-" * 80)
     print(f"👉 총 분석 비디오 세트 수  : {total_samples:5d}개 (100.00%)")
         
+    # 6.5. 원본 및 정규화(Z-score) 피처 통계 요약표 출력
+    print("\n" + "="*75)
+    print("📊 [원본 CLIP 피처] 통계 요약")
+    print("="*75)
+    print(res_df[['Max', 'Mean', 'Ratio']].describe().to_string())
+
+    print("\n" + "="*75)
+    print("📊 [정규화 완료된 Z-score 피처] 통계 요약")
+    print("="*75)
+    print(res_df[['Max_scaled', 'Mean_scaled']].describe().to_string())
+
     # 7. 최종 CSV 저장
     OUTPUT_FILE = "snu_clip_features.csv"
     res_df.to_csv(OUTPUT_FILE, index=False)
