@@ -15,7 +15,6 @@
 | **`clip_labeling_model.py`** | 💻 스크립트 | **[Kaggle GPU 권장] 엄격 기준 마스터 피처 추출기**. 9,535개 비디오의 CLIP 거리 및 Z-Score, 0~3회 장면 전환 횟수를 라벨링하여 `snu_clip_features.csv`로 저장해 주는 핵심 코드. |
 | **`run_clip_analysis_kaggle.py`** | 💻 스크립트 | 캐글 환경에서 CLIP 통계 요약 및 정규화(Z-Score) 변환 분포를 산출하기 위한 분석 스크립트. |
 | **`run_clip_cuts_analysis_kaggle.py`**| 💻 스크립트 | 오직 CLIP 오차만을 기준으로 장면 전환 횟수를 분배 및 집계하는 스크립트. |
-| **`baseline_wrong/`** | 📁 폴더 | 베이스라인 모델(`Qwen2-VL-2B`)이 틀린 166개 오답 리스트(`csv`), 인간 성능 상한선 검수 리포트, 대표 오답 분석 이미지 3종 보관. |
 | **`resize_cache.py`** | ⚡ 스크립트 | 대용량 원본 이미지들을 CPU 멀티스레드로 고속 리사이즈하여 GPU 학습 병목을 제거하는 전처리 도구. |
 | **`plot_tradeoff.py`** | ⚡ 스크립트 | 해상도별 성능 결과를 시각화하여 `resolution_tradeoff_curve.png` 트레이드오프 곡선을 그리는 도구. |
 | **`resolution_benchmark.py`** | ⚡ 스크립트 | **최적 해상도 벤치마크 코드**. (LANCZOS 물리적 리사이즈 + Wilson CI 95% 신뢰구간 계산 탑재). |
