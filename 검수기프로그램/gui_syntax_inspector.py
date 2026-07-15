@@ -6,19 +6,62 @@ import numpy as np
 import pandas as pd
 from PIL import Image, ImageTk
 import tkinter as tk
-from tkinter import messagebox
+from tkinter import messagebox, filedialog
 
 # Force stdout to UTF-8 to prevent cp949 encode errors in Windows
 sys.stdout.reconfigure(encoding='utf-8')
 
 # =========================================================================
-# [경로 설정]
+# [경로 설정 - 단독 실행이 가능한 상대 경로 매핑]
 # =========================================================================
-DATA_DIR = "./snuaichallenge_data"
-SOURCE_CSV = "./train_검토_최종_완료.csv"          # 원본 검토용 CSV (미터치 보존)
-TRAIN_CSV = "./train_검토_최종_완료_수정본.csv"    # 복제 및 실제 수정용 CSV
-FEATURES_CSV = "./snu_clip_features.csv"
-IMAGE_DIR = os.path.join(DATA_DIR, "train")
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+SOURCE_CSV = os.path.join(SCRIPT_DIR, "train_검토_최종_완료.csv")
+TRAIN_CSV = os.path.join(SCRIPT_DIR, "train_검토_최종_완료_수정본.csv")
+FEATURES_CSV = os.path.join(SCRIPT_DIR, "snu_clip_features.csv")
+CONFIG_PATH = os.path.join(SCRIPT_DIR, "image_path_config.txt")
+
+# 이미지 폴더 찾기 및 사용자 지정 로직
+IMAGE_DIR = ""
+candidate_dirs = [
+    os.path.join(SCRIPT_DIR, "snuaichallenge_data", "train"),
+    os.path.join(os.path.dirname(SCRIPT_DIR), "snuaichallenge_data", "train"),
+    os.path.join(SCRIPT_DIR, "train"),
+]
+
+# 1. 기존에 선택했던 캐시 경로가 있는지 확인
+if os.path.exists(CONFIG_PATH):
+    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+        cached_path = f.read().strip()
+        if os.path.exists(cached_path):
+            IMAGE_DIR = cached_path
+
+# 2. 캐시가 없으면 기본 후보 경로 탐색
+if not IMAGE_DIR:
+    for cdir in candidate_dirs:
+        if os.path.exists(cdir):
+            IMAGE_DIR = cdir
+            break
+
+# 3. 그래도 없으면 사용자에게 대화상자로 선택 요청
+if not IMAGE_DIR:
+    root_temp = tk.Tk()
+    root_temp.withdraw()  # 임시 루트 창 숨기기
+    messagebox.showinfo(
+        "이미지 경로 설정",
+        "대회 이미지(train) 폴더를 찾을 수 없습니다.\n"
+        "다음 창에서 다운로드받으신 이미지들이 들어있는 'train' 폴더(예: 00GGp0 등의 하위 폴더가 들어있는 폴더)를 선택해 주세요."
+    )
+    selected_dir = filedialog.askdirectory(title="대회 이미지(train) 폴더를 선택해 주세요")
+    root_temp.destroy()
+    
+    if selected_dir:
+        IMAGE_DIR = os.path.normpath(selected_dir)
+        # 선택 경로 저장
+        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+            f.write(IMAGE_DIR)
+    else:
+        # 선택 안 하고 취소 시 프로그램 종료
+        sys.exit()
 
 # ID 기반 담당 범위 인덱스 정의
 REVIEWER_RANGES = {
