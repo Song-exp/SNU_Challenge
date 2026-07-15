@@ -12,13 +12,39 @@ from tkinter import messagebox, filedialog
 sys.stdout.reconfigure(encoding='utf-8')
 
 # =========================================================================
-# [경로 설정 - 단독 실행이 가능한 상대 경로 매핑]
+# [경로 설정 - 단독 및 부모 폴더 실행을 모두 지원하는 하이브리드 경로 매핑]
 # =========================================================================
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-SOURCE_CSV = os.path.join(SCRIPT_DIR, "train_검토_최종_완료.csv")
-TRAIN_CSV = os.path.join(SCRIPT_DIR, "train_검토_최종_완료_수정본.csv")
-FEATURES_CSV = os.path.join(SCRIPT_DIR, "snu_clip_features.csv")
 CONFIG_PATH = os.path.join(SCRIPT_DIR, "image_path_config.txt")
+
+# 1. 원본 CSV 찾기 (부모 폴더 혹은 현재 폴더 탐색)
+possible_sources = [
+    os.path.join(os.path.dirname(SCRIPT_DIR), "train_검토_최종_완료.csv"),
+    os.path.join(SCRIPT_DIR, "train_검토_최종_완료.csv")
+]
+SOURCE_CSV = ""
+for p in possible_sources:
+    if os.path.exists(p):
+        SOURCE_CSV = p
+        break
+if not SOURCE_CSV:
+    SOURCE_CSV = os.path.join(SCRIPT_DIR, "train_검토_최종_완료.csv")
+
+# 2. 수정본 CSV 및 피처 CSV 경로 매핑 (찾아낸 원본 CSV 폴더를 기준 삼아 매칭)
+CSV_PARENT_DIR = os.path.dirname(SOURCE_CSV)
+TRAIN_CSV = os.path.join(CSV_PARENT_DIR, "train_검토_최종_완료_수정본.csv")
+
+possible_features = [
+    os.path.join(CSV_PARENT_DIR, "snu_clip_features.csv"),
+    os.path.join(SCRIPT_DIR, "snu_clip_features.csv")
+]
+FEATURES_CSV = ""
+for p in possible_features:
+    if os.path.exists(p):
+        FEATURES_CSV = p
+        break
+if not FEATURES_CSV:
+    FEATURES_CSV = os.path.join(CSV_PARENT_DIR, "snu_clip_features.csv")
 
 # 이미지 폴더 찾기 및 사용자 지정 로직
 IMAGE_DIR = ""
