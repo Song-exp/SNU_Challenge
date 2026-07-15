@@ -1,8 +1,0 @@
-# SNU AI Challenge - Image EDA & Preprocessing Requirements
-# 이 패키지들은 이미지 전처리, 층화 샘플링, 속도-정확도 시각화 곡선 실시에 필요합니다.
-
-pillow>=10.0.0
-numpy>=1.20.0
-pandas>=1.5.0
-matplotlib>=3.5.0
-tqdm>=4.60.0

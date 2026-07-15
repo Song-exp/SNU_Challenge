@@ -48,3 +48,7 @@ ehthumbs.db
 snuaichallenge_data/
 snuaichallenge_data_resized/
 models/
+
+# Local UI Inspectors
+eda/scene_cut_inspector_strict.py
+KakaoTalk_20260714_174222942.png
