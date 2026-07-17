@@ -52,3 +52,13 @@ models/
 # Local UI Inspectors
 eda/scene_cut_inspector_strict.py
 KakaoTalk_20260714_174222942.png
+
+# Local Terminal Inspectors
+scripts/terminal_syntax_inspector.py
+
+run_inspector.bat
+
+run_gui_inspector.bat
+scripts/gui_syntax_inspector.py
+
+train_검토_최종_완료_수정본.csv
