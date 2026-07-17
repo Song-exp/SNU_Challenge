@@ -54,17 +54,21 @@ def chrono_image_numbers(answer):
     return c
 
 
-def build_training_items(df, image_dir, aug_mult, rng):
-    """각 샘플을 aug_mult개의 (제시 순서 변형, 시간순 라벨) 학습 항목으로 확장한다."""
+def build_training_items(df, image_dir, aug_mult, rng, aug_weights=None):
+    """각 샘플을 aug_mult개의 (제시 순서 변형, 시간순 라벨) 학습 항목으로 확장한다.
+
+    aug_weights: {Id: 배수} — 지정된 Id는 해당 배수로, 나머지는 aug_mult로 (타깃 증강용).
+    """
     items = []
     for _, row in df.iterrows():
+        mult = aug_weights.get(row["Id"], aug_mult) if aug_weights else aug_mult
         files = [row["Input_1"], row["Input_2"], row["Input_3"], row["Input_4"]]
         answer = ast.literal_eval(row["Answer"])
         chrono = chrono_image_numbers(answer)             # 시간순 이미지 번호 (원본 제시 기준)
         time_files = [files[n - 1] for n in chrono]       # 시간순 파일 목록 (변형 불변)
 
         seen = set()
-        for v in range(aug_mult):
+        for v in range(mult):
             if v == 0:
                 perm = list(range(4))                      # 변형 0 = 원본 제시 순서
             else:
@@ -123,6 +127,8 @@ def main():
     parser.add_argument("--load-4bit", action="store_true", help="QLoRA (4B 이상은 필수)")
     parser.add_argument("--run-name", required=True, help="출력 폴더명 (outputs/runs/<run-name>)")
     parser.add_argument("--aug-mult", type=int, default=2, help="샘플당 제시 순서 변형 수 (원본 포함)")
+    parser.add_argument("--aug-weights", default="",
+                        help="Id별 증강 배수 CSV (열: Id,aug_mult) — 명시된 Id는 그 배수, 나머지는 --aug-mult")
     parser.add_argument("--epochs", type=int, default=1)
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--lora-r", type=int, default=16)
@@ -139,6 +145,8 @@ def main():
     parser.add_argument("--max-steps", type=int, default=0, help="옵티마이저 스텝 상한 (0=제한 없음)")
     parser.add_argument("--max-hours", type=float, default=0, help="시간 상한, 초과 시 저장 후 종료 (0=없음)")
     parser.add_argument("--save-steps", type=int, default=100, help="어댑터 주기 저장 (옵티마이저 스텝 단위)")
+    parser.add_argument("--snapshot-steps", type=int, default=0,
+                        help="N스텝마다 checkpoints/step_N/ 에 별도 스냅샷 저장 (학습 곡선용, 0=끔)")
     parser.add_argument("--log-steps", type=int, default=10)
     parser.add_argument("--data-dir", default="./snuaichallenge_data/")
     args = parser.parse_args()
@@ -169,9 +177,16 @@ def main():
     if args.max_samples:
         train_df = train_df.sample(n=args.max_samples, random_state=args.seed).reset_index(drop=True)
     image_dir = os.path.join(args.data_dir, "train")
-    items = build_training_items(train_df, image_dir, args.aug_mult, rng)
+    aug_weights = None
+    if args.aug_weights:
+        wdf = pd.read_csv(args.aug_weights)
+        aug_weights = dict(zip(wdf["Id"], wdf["aug_mult"].astype(int)))
+        counts = wdf["aug_mult"].value_counts().sort_index()
+        dist = ", ".join(f"x{m}: {n}개" for m, n in counts.items())
+        print(f"가변 증강: {args.aug_weights} ({len(aug_weights)}개 Id | {dist} | 미지정은 x{args.aug_mult})", flush=True)
+    items = build_training_items(train_df, image_dir, args.aug_mult, rng, aug_weights)
     rng.shuffle(items)
-    print(f"기반 {len(train_df)}개 x 증강 {args.aug_mult} = 학습 항목 {len(items)}개", flush=True)
+    print(f"기반 {len(train_df)}개 -> 학습 항목 {len(items)}개 (기본 증강 x{args.aug_mult})", flush=True)
 
     # ---- 모델 로드 ---------------------------------------------------------------------------
     disk_gb = sum(
@@ -288,6 +303,10 @@ def main():
 
                     if opt_step % args.save_steps == 0:
                         save_adapter(f"step {opt_step}")
+                    if args.snapshot_steps and opt_step % args.snapshot_steps == 0:
+                        snap_dir = os.path.join(out_dir, "checkpoints", f"step_{opt_step:05d}")
+                        model.save_pretrained(snap_dir)
+                        print(f"[snapshot] 스텝 {opt_step} -> {snap_dir}", flush=True)
                     if args.max_steps and opt_step >= args.max_steps:
                         stop_reason = f"max_steps({args.max_steps}) 도달"
                         raise StopIteration
