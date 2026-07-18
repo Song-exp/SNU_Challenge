@@ -233,6 +233,7 @@ python scripts/eval_zero_shot.py --model ./models/Qwen3-VL-2B-Instruct --adapter
 12. **추론 노트북 커널이 GPU를 계속 잡는다** (모델 ~4.7GB) — 학습 시작 전 다른 노트북 커널 종료/재시작 필수. 7/15에만 두 번 겪음 (VRAM 대기 루프의 원인)
 13. **백그라운드로 죽인 프로세스가 VRAM을 몇 분 쥐고 있을 수 있음** — nvidia-smi로 확인 후 진행
 14. **ollama 러너가 클라이언트 Ctrl-C 직후 먹통(wedge)이 될 수 있음** — 증상: 스크립트가 로그 없이 조용 + `ollama ps`엔 모델이 떠 있는데 직접 curl 생성 요청도 무응답. 해법: ollama 완전 재시작 (`ollama stop`으로는 안 풀림). 7/17 실제 발생
+14b. **WSL 안에서 도는 작업은 절전을 못 막는다** — train.py의 keep_awake는 Windows 프로세스에만 유효. WSL 작업(ollama·라벨링)은 절전 시 VM째 죽음 (7/18 새벽 2회 발생). 해법: Windows 쪽에서 `SetThreadExecutionState(0x80000001)` 유지 루프를 별도로 상주시킬 것
 15. **pandas에서 `df.gt` 열 접근 금지** — `.gt()`(greater-than) 메서드와 충돌해 KeyError. 반드시 `df["gt"]`
 
 ## 8. 다음 단계 (우선순위순, 7/17 오전 갱신)

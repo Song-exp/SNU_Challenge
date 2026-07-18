@@ -45,13 +45,13 @@ def parse_model_output(output_text):
     return [1, 2, 3, 4], False
 
 
-def get_prompt_message(row, image_dir, prompt_name="v1_list"):
+def get_prompt_message(row, image_dir, prompt_name="v1_list", hint=""):
     img_files = [row["Input_1"], row["Input_2"], row["Input_3"], row["Input_4"]]
     content = []
     for i, img_file in enumerate(img_files):
         content.append({"type": "image", "image": os.path.join(image_dir, row["Id"], img_file)})
         content.append({"type": "text", "text": f"\nImage {i + 1}\n"})
-    content.append({"type": "text", "text": prompt_registry.build_user_text(prompt_name, row["Sentence"])})
+    content.append({"type": "text", "text": prompt_registry.build_user_text(prompt_name, row["Sentence"], hint)})
     return [{"role": "user", "content": content}]
 
 
@@ -122,12 +122,18 @@ def main():
     print("모델 로드 완료", flush=True)
 
     image_dir = os.path.join(args.data_dir, "train")
+    clip_pairs = None
+    if prompt_registry.needs_hint(args.prompt):
+        from structure_features import hint_text, load_clip_pairs
+        clip_pairs = load_clip_pairs()
+        print(f"힌트 주입: CLIP 유사쌍 로드 ({len(clip_pairs)}개 Id) — holdout은 원본 제시 순서라 재매핑 없음", flush=True)
     torch.cuda.reset_peak_memory_stats()
     records = []
     t_start = time.time()
 
     for _, row in tqdm(eval_df.iterrows(), total=len(eval_df)):
-        messages = get_prompt_message(row, image_dir, args.prompt)
+        hint = hint_text(clip_pairs.get(row["Id"], [])) if clip_pairs is not None else ""
+        messages = get_prompt_message(row, image_dir, args.prompt, hint)
         text = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
         image_inputs, video_inputs = process_vision_info(messages)
         inputs = processor(

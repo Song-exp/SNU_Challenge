@@ -111,6 +111,55 @@ def ask_gemma(sentence, model, retries=2):
     return None, last_err, 0.0
 
 
+def build_targets_test():
+    """test 819 전량 — 추론 전처리·제출 후 분석 전용.
+    ⚠️ 규정(PROJECT_SETUP §4.3): 이 라벨을 학습 설계(증강 가중·실험 선정)에 쓰면 실격."""
+    import pandas as pd
+    test_df = pd.read_csv("./snuaichallenge_data/test.csv")
+    return [("test", r["Id"], r["Sentence"]) for _, r in test_df.iterrows()]
+
+
+def derive_test_outputs(parts_dir):
+    """test 라벨 -> 파생 2종: 분류용 test_features.csv + 추론용 test_hints.csv."""
+    import glob as g
+    import pandas as pd
+    rows = []
+    for path in sorted(g.glob(os.path.join(parts_dir, "part_*.jsonl"))):
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                try:
+                    r = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if r.get("ok"):
+                    rows.append(r)
+    if not rows:
+        print("파생 생성 건너뜀: 성공 라벨 없음", flush=True)
+        return
+    df = pd.DataFrame(rows).drop_duplicates("Id", keep="last")
+    feat = pd.DataFrame({
+        "Id": df["Id"],
+        "camera": df["camera_language"].astype(bool),
+        "viewer": df["viewer_language"].astype(bool),
+        "n_events": df["events"].map(len),
+        "n_subj": df["subjects"].map(len),
+        "n_markers": df["temporal_markers"].map(len),
+    })
+    feat_path = os.path.join(OUT_DIR, "test_features.csv")
+    feat.to_csv(feat_path, index=False)
+    hints = pd.DataFrame({
+        "Id": df["Id"],
+        "events": df["events"].map(lambda e: " -> ".join(map(str, e))),
+        "subjects": df["subjects"].map(lambda s: ", ".join(map(str, s))),
+        "markers": df["temporal_markers"].map(lambda m: ", ".join(map(str, m))),
+        "camera": df["camera_language"].astype(bool),
+        "viewer": df["viewer_language"].astype(bool),
+    })
+    hints_path = os.path.join(OUT_DIR, "test_hints.csv")
+    hints.to_csv(hints_path, index=False)
+    print(f"파생 생성: {feat_path} (분류용) + {hints_path} (추론용) — {len(df)}행", flush=True)
+
+
 def build_targets(train_count):
     """(split, Id, sentence) 목록 — holdout 300 + 미니 풀 1000(시드42) + 나머지 train(시드43 셔플).
 
@@ -134,11 +183,12 @@ def build_targets(train_count):
     return targets
 
 
-def load_done_ids():
-    """labels.jsonl + parts/*.jsonl에서 성공한 Id 집합을 회수."""
+def load_done_ids(parts_dir=PARTS_DIR, include_legacy=True):
+    """labels.jsonl(옵션) + parts/*.jsonl에서 성공한 Id 집합을 회수."""
     import glob
     done = set()
-    paths = ([OUT_PATH] if os.path.exists(OUT_PATH) else []) + sorted(glob.glob(os.path.join(PARTS_DIR, "part_*.jsonl")))
+    paths = ([OUT_PATH] if include_legacy and os.path.exists(OUT_PATH) else []) \
+        + sorted(glob.glob(os.path.join(parts_dir, "part_*.jsonl")))
     for path in paths:
         with open(path, encoding="utf-8") as f:
             for line in f:
@@ -151,11 +201,11 @@ def load_done_ids():
     return done
 
 
-def open_part_writer():
+def open_part_writer(parts_dir=PARTS_DIR):
     """이어쓸 파트 파일 경로와 현재 줄 수를 반환 — 300줄 차면 다음 파트로."""
     import glob
-    os.makedirs(PARTS_DIR, exist_ok=True)
-    parts = sorted(glob.glob(os.path.join(PARTS_DIR, "part_*.jsonl")))
+    os.makedirs(parts_dir, exist_ok=True)
+    parts = sorted(glob.glob(os.path.join(parts_dir, "part_*.jsonl")))
     if parts:
         last = parts[-1]
         with open(last, encoding="utf-8") as f:
@@ -165,7 +215,7 @@ def open_part_writer():
         next_no = int(os.path.basename(last)[5:8]) + 1
     else:
         next_no = 1
-    return os.path.join(PARTS_DIR, f"part_{next_no:03d}.jsonl"), 0
+    return os.path.join(parts_dir, f"part_{next_no:03d}.jsonl"), 0
 
 
 def main():
@@ -173,19 +223,32 @@ def main():
     parser.add_argument("--model", default="gemma4:12b")
     parser.add_argument("--train-count", type=int, default=0, help="train 앞 N개까지만 (0=전체)")
     parser.add_argument("--limit", type=int, default=0, help="이번 실행에서 처리할 최대 건수 (0=전부, 스모크용)")
+    parser.add_argument("--dataset", default="train", choices=["train", "test"],
+                        help="test = test.csv 819 전량 (별도 test_parts/, 추론 전처리 전용 — 학습 설계 사용 금지)")
+    parser.add_argument("--derive-only", action="store_true",
+                        help="(test 전용) 추출 없이 파생 파일(features/hints CSV)만 재생성")
     args = parser.parse_args()
 
     os.makedirs(OUT_DIR, exist_ok=True)
-    done = load_done_ids()
+    if args.dataset == "test":
+        parts_dir = os.path.join(OUT_DIR, "test_parts")
+        if args.derive_only:
+            derive_test_outputs(parts_dir)
+            return
+        done = load_done_ids(parts_dir, include_legacy=False)
+        targets = build_targets_test()
+    else:
+        parts_dir = PARTS_DIR
+        done = load_done_ids()
+        targets = build_targets(args.train_count)
 
-    targets = build_targets(args.train_count)
     todo = [t for t in targets if t[1] not in done]
-    print(f"전체 {len(targets)} | 완료 {len(targets) - len(todo)} | 남음 {len(todo)}", flush=True)
+    print(f"[{args.dataset}] 전체 {len(targets)} | 완료 {len(targets) - len(todo)} | 남음 {len(todo)}", flush=True)
     if args.limit:
         todo = todo[:args.limit]
         print(f"--limit {args.limit}: 이번 실행은 {len(todo)}건만 처리", flush=True)
 
-    part_path, part_lines = open_part_writer()
+    part_path, part_lines = open_part_writer(parts_dir)
     t_start, n_ok, n_fail = time.time(), 0, 0
     for i, (split, sid, sentence) in enumerate(todo):
         labels, raw, dt = ask_gemma(sentence, args.model)
@@ -198,7 +261,7 @@ def main():
             row["error"] = raw[:200]
             n_fail += 1
         if part_lines >= PART_SIZE:
-            part_path, part_lines = open_part_writer()
+            part_path, part_lines = open_part_writer(parts_dir)
         with open(part_path, "a", encoding="utf-8") as f:
             f.write(json.dumps(row, ensure_ascii=False) + "\n")
         part_lines += 1
@@ -226,7 +289,9 @@ def main():
             print(f"    └ {raw[:120]}", flush=True)
 
     print(f"종료: 성공 {n_ok}, 실패 {n_fail}, {(time.time() - t_start) / 3600:.1f}시간 "
-          f"-> {PARTS_DIR}", flush=True)
+          f"-> {parts_dir}", flush=True)
+    if args.dataset == "test":
+        derive_test_outputs(parts_dir)
 
 
 if __name__ == "__main__":
