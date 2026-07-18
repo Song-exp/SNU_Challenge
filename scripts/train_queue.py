@@ -115,10 +115,24 @@ def main():
         run_dir = PROJECT / "outputs" / "runs" / name
         run_dir.mkdir(parents=True, exist_ok=True)
 
+        # 의사 플래그 추출 (학습 스크립트에는 전달하지 않음):
+        #   --script train_cot.py        학습 엔진 교체 (기본 train.py)
+        #   --eval-max-new-tokens 512    평가 생성 길이 (CoT 계열 필수)
+        toks = train_args.split()
+        script, eval_tokens = "train.py", None
+        if "--script" in toks:
+            i = toks.index("--script")
+            script = toks[i + 1]
+            del toks[i:i + 2]
+        if "--eval-max-new-tokens" in toks:
+            i = toks.index("--eval-max-new-tokens")
+            eval_tokens = toks[i + 1]
+            del toks[i:i + 2]
+
         wait_until_gpu_free()
 
         # ---- 학습 (콘솔은 run 폴더로 -> 노트북 게이지 셀에서 관전 가능) ----
-        cmd = [PY, str(PROJECT / "scripts" / "train.py"), "--run-name", name] + train_args.split()
+        cmd = [PY, str(PROJECT / "scripts" / script), "--run-name", name] + toks
         log(f"[{name}] 학습 시작: {' '.join(cmd)}")
         with open(run_dir / "console.log", "w", encoding="utf-8") as cf:
             rc = subprocess.run(cmd, cwd=PROJECT, stdout=cf, stderr=subprocess.STDOUT).returncode
@@ -134,6 +148,8 @@ def main():
         eval_cmd = [PY, str(PROJECT / "scripts" / "eval_zero_shot.py"),
                     "--model", model, "--adapter", f"./outputs/runs/{name}/adapter",
                     "--prompt", prompt]
+        if eval_tokens:
+            eval_cmd += ["--max-new-tokens", eval_tokens]
         if "--load-4bit" in train_args:
             eval_cmd.append("--load-4bit")
         log(f"[{name}] 평가 시작")

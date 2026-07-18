@@ -115,11 +115,33 @@ def build_cot_target(events, target):
     return "\n".join(lines)
 
 
-def build_training_items_cot(df, image_dir, aug_mult, rng, splitter):
+def load_gemma_events(df):
+    """gemma 라벨의 events를 타깃 소스로 사용 (exp12의 spacy 분해 품질 문제 대체).
+
+    라벨 없는 Id가 있으면 spacy 폴백 없이 중단 — 미니 풀은 전량 라벨돼 있어야 정상.
+    """
+    from structure_features import load_gemma_labels
+    g = load_gemma_labels()
+    events = {r.Id: [str(e) for e in r.events][:5] for r in g.itertuples() if r.events}
+    missing = [i for i in df["Id"] if i not in events]
+    if missing:
+        raise SystemExit(f"gemma events 누락 {len(missing)}개 (예: {missing[:5]}) — "
+                         f"라벨링 범위를 확인하거나 --events-from spacy로 실행")
+    return events
+
+
+def build_training_items_cot(df, image_dir, aug_mult, rng, splitter, events_from="spacy",
+                             clip_pairs=None):
     """train.py의 build_training_items와 동일한 증강 규약 + CoT target.
-    이벤트 분해는 샘플당 1회(변형 불변), target 리스트만 변형별로 재계산."""
-    print("문장 이벤트 분해 중 (spacy)...", flush=True)
-    events_by_id = {row["Id"]: splitter.split(row["Sentence"]) for _, row in df.iterrows()}
+    이벤트 분해는 샘플당 1회(변형 불변), target 리스트만 변형별로 재계산.
+    clip_pairs가 있으면 변형별 재매핑 힌트를 item["hint"]에 저장 (v7_cot_hint용)."""
+    from structure_features import hint_text, remap_pairs
+    if events_from == "gemma":
+        print("이벤트 소스: gemma 라벨", flush=True)
+        events_by_id = load_gemma_events(df)
+    else:
+        print("문장 이벤트 분해 중 (spacy)...", flush=True)
+        events_by_id = {row["Id"]: splitter.split(row["Sentence"]) for _, row in df.iterrows()}
 
     items = []
     for _, row in df.iterrows():
@@ -143,11 +165,15 @@ def build_training_items_cot(df, image_dir, aug_mult, rng, splitter):
 
             shown_files = [files[j] for j in perm]
             target = [shown_files.index(f) + 1 for f in time_files]
+            hint = ""
+            if clip_pairs is not None:
+                hint = hint_text(remap_pairs(clip_pairs.get(row["Id"], []), perm))
             items.append({
                 "id": row["Id"],
                 "sentence": row["Sentence"],
                 "paths": [os.path.join(image_dir, row["Id"], f) for f in shown_files],
                 "target_text": build_cot_target(events, target),
+                "hint": hint,
             })
     return items
 
@@ -180,31 +206,43 @@ def main():
     parser.add_argument("--data-dir", default="./snuaichallenge_data/")
     parser.add_argument("--preview", type=int, default=0,
                         help="N개 샘플의 CoT target만 출력하고 종료 (GPU 불필요)")
+    parser.add_argument("--events-from", default="spacy", choices=["spacy", "gemma"],
+                        help="타깃 이벤트 소스 — gemma = outputs/gemma_labels (v7 트랙)")
     args = parser.parse_args()
 
     import pandas as pd
 
     random.seed(args.seed)
     rng = random.Random(args.seed)
-    splitter = EventSplitter()
+    splitter = EventSplitter() if args.events_from == "spacy" else None
+
+    clip_pairs = None
+    if prompt_registry.needs_hint(args.prompt):
+        from structure_features import load_clip_pairs
+        clip_pairs = load_clip_pairs()
+        print(f"힌트 주입: CLIP 유사쌍 {len(clip_pairs)}개 Id (프롬프트 {args.prompt})", flush=True)
 
     # ---- 데이터 ------------------------------------------------------------------------------
     train_df = pd.read_csv(os.path.join(args.data_dir, "train.csv"))
     excluded = load_excluded_ids()
     train_df = train_df[~train_df["Id"].isin(excluded)].reset_index(drop=True)
 
-    if args.preview:  # target 생성 미리보기 — 학습 없이 형식 눈검사
-        sample = train_df.sample(n=args.preview, random_state=args.seed)
+    if args.preview:  # target 생성 미리보기 — 학습 없이 형식 눈검사 (미니 풀과 같은 시드로 뽑음)
+        sample = train_df.sample(n=1000, random_state=args.seed).head(args.preview)
         items = build_training_items_cot(sample, os.path.join(args.data_dir, "train"),
-                                         1, rng, splitter)
+                                         2, rng, splitter, args.events_from, clip_pairs)
         for it in items:
-            print(f"\n===== {it['id']} =====\n문장: {it['sentence']}\n--- target ---\n{it['target_text']}")
+            print(f"\n===== {it['id']} =====\n문장: {it['sentence']}")
+            if it["hint"]:
+                print(f"힌트: {it['hint'].strip()}")
+            print(f"--- target ---\n{it['target_text']}")
         return
 
     if args.max_samples:
         train_df = train_df.sample(n=args.max_samples, random_state=args.seed).reset_index(drop=True)
     image_dir = os.path.join(args.data_dir, "train")
-    items = build_training_items_cot(train_df, image_dir, args.aug_mult, rng, splitter)
+    items = build_training_items_cot(train_df, image_dir, args.aug_mult, rng, splitter,
+                                     args.events_from, clip_pairs)
     rng.shuffle(items)
     tgt_chars = sum(len(i["target_text"]) for i in items) // max(len(items), 1)
     print(f"기반 {len(train_df)}개 x 증강 {args.aug_mult} = 학습 항목 {len(items)}개 "
@@ -279,7 +317,7 @@ def main():
                    "started": datetime.now().isoformat()}, f, ensure_ascii=False, indent=2)
 
     def encode(item):
-        messages = build_messages(item["sentence"], item["paths"], args.prompt)
+        messages = build_messages(item["sentence"], item["paths"], args.prompt, item.get("hint", ""))
         prompt_text = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
         full_msgs = messages + [{"role": "assistant", "content": [{"type": "text", "text": item["target_text"]}]}]
         full_text = processor.apply_chat_template(full_msgs, tokenize=False)

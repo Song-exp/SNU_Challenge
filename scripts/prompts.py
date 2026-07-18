@@ -84,8 +84,72 @@ PROMPTS = {
         'Sentence: "{sentence}"\n'
         "Provide the answer ONLY as a Python list of integers. Example: [1, 2, 3, 4]"
     ),
+    # ---- v6/v7: CLIP 유사쌍 힌트 트랙 (7/17 설계 합의, VISION 트랙 2) --------------------
+    # {hint}는 structure_features.hint_text()가 채움 — 관측 사실(유사쌍)만.
+    # 체인(정밀도 34.5%)·전환횟수(미검증)는 기각, 유사쌍은 인접 정밀도 82% 실측.
+    # ⚠️ 학습 시 증강 변형마다 쌍 번호가 제시 순서로 재매핑됨 (train.py/train_cot.py가 처리).
+    # v6: 직답 + 힌트 — v1_list와 {hint} 한 줄 차이 (미니 효과 = 순수 힌트 효과)
+    "v6_hint": (
+        'Thinking about the sentence: "{sentence}"\n'
+        "{hint}"
+        "Look at the 4 images above labeled Image 1 to Image 4. "
+        "Determine the correct chronological order of these images to match the sentence. "
+        "Provide the answer ONLY as a Python list of integers. "
+        "Example: [1, 2, 3, 4]"
+    ),
+    # v7: CoT (타깃 = gemma events 기계생성, train_cot.py --events-from gemma)
+    # 섹션 구성이 타깃과 정확히 일치 (exp12의 프롬프트-타깃 불일치 제거).
+    # ⚠️ 평가 --max-new-tokens 512 필수
+    "v7_cot": (
+        "[Role]: You are an expert video-language understanding AI.\n"
+        "[Task]: Your core function is to reconstruct the correct chronological order "
+        "of 4 shuffled video frames to accurately match the given storyline.\n\n"
+        'Sentence: "{sentence}"\n\n'
+        "Look at the 4 images above labeled Image 1 to Image 4.\n"
+        "Execute your task by following these exact steps:\n\n"
+        "1. [Story Analysis]: List the distinct events of the sentence in narrated order.\n"
+        "2. [Chronological Mapping]: Assign each position in time to an image. "
+        "Apply this logic internally and output ONLY the mapping result without "
+        "explaining the reasons.\n"
+        "3. [Final Answer]: Give the final list.\n\n"
+        "You MUST enclose your final python list of integers within <ANSWER> tags.\n\n"
+        "Output format:\n"
+        "[Story Analysis]\n- Event 1: ...\n"
+        "[Chronological Mapping]\n- 1st: Image 3\n- 2nd: Image 1\n- 3rd: Image 4\n- 4th: Image 2\n"
+        "[Final Answer]\n<ANSWER>[3, 1, 4, 2]</ANSWER>"
+    ),
+    # v7 + 힌트: 사용자 제안 템플릿(7/17) + Mapping Rule 연성판 (MUST -> strong guidance,
+    # 문장 우선 조항 추가 — 힌트 정밀도 77~82%라 경성 규칙은 오답 강제 위험)
+    "v7_cot_hint": (
+        "[Role]: You are an expert video-language understanding AI.\n"
+        "[Task]: Your core function is to reconstruct the correct chronological order "
+        "of 4 shuffled video frames to accurately match the given storyline.\n\n"
+        'Sentence: "{sentence}"\n'
+        "{hint}\n"
+        "Look at the 4 images above labeled Image 1 to Image 4.\n"
+        "Execute your task by following these exact steps:\n\n"
+        "1. [Story Analysis]: List the distinct events of the sentence in narrated order.\n"
+        "2. [Chronological Mapping]: Assign each position in time to an image.\n"
+        "   * Mapping Rule: Use the visual note above as strong guidance — images noted "
+        "as similar usually belong to continuous or adjacent moments in time, and "
+        "clearly different images usually belong to different stages of the story. "
+        "If the sentence clearly contradicts the note, trust the sentence. "
+        "Apply this logic internally and output ONLY the mapping result without "
+        "explaining the reasons.\n"
+        "3. [Final Answer]: Give the final list.\n\n"
+        "You MUST enclose your final python list of integers within <ANSWER> tags.\n\n"
+        "Output format:\n"
+        "[Story Analysis]\n- Event 1: ...\n"
+        "[Chronological Mapping]\n- 1st: Image 3\n- 2nd: Image 1\n- 3rd: Image 4\n- 4th: Image 2\n"
+        "[Final Answer]\n<ANSWER>[3, 1, 4, 2]</ANSWER>"
+    ),
 }
 
 
-def build_user_text(prompt_name, sentence):
-    return PROMPTS[prompt_name].format(sentence=sentence)
+def build_user_text(prompt_name, sentence, hint=""):
+    return PROMPTS[prompt_name].format(sentence=sentence, hint=hint)
+
+
+def needs_hint(prompt_name):
+    """이 프롬프트가 샘플별 힌트 주입을 요구하는가 (train/eval이 CLIP 유사쌍 로드 필요)."""
+    return "{hint}" in PROMPTS[prompt_name]

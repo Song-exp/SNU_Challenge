@@ -24,6 +24,9 @@ CLIP_TRAIN_PATH = "./snu_clip_features.csv"        # 팀원 산출물 (train 9,5
 CLIP_TEST_PATH = "./snu_clip_features_test.csv"    # 팀원 산출물 예정 (test 819행, 같은 스키마)
 CLIP_REQUIRED_COLS = ["Id", "predicted_scene_cuts",
                       "dist_12", "dist_13", "dist_14", "dist_23", "dist_24", "dist_34"]
+PAIR_COLS = {(1, 2): "dist_12", (1, 3): "dist_13", (1, 4): "dist_14",
+             (2, 3): "dist_23", (2, 4): "dist_24", (3, 4): "dist_34"}
+CLIP_SIM_THRESHOLD = 0.20   # 유사쌍 판정 임계 (팀 non-strict 매핑과 동일 기준)
 
 
 def camera_regex(sentence):
@@ -85,6 +88,35 @@ def load_clip_features(path=CLIP_TRAIN_PATH):
     return df
 
 
+def load_clip_pairs(path=CLIP_TRAIN_PATH, threshold=CLIP_SIM_THRESHOLD):
+    """{Id: [(a, b), ...]} — CLIP 거리 < threshold 인 유사쌍 (원본 제시 순서 기준 1-based)."""
+    df = load_clip_features(path)
+    out = {}
+    for row in df.itertuples():
+        out[row.Id] = [p for p, col in PAIR_COLS.items() if getattr(row, col) < threshold]
+    return out
+
+
+def remap_pairs(pairs, perm):
+    """유사쌍 번호를 증강 변형의 제시 순서로 변환.
+
+    perm: train.py build_training_items의 변형 규약 — perm[j] = 이번 변형에서
+    Image j+1로 제시되는 원본 이미지의 0-based 인덱스.
+    """
+    pos = {orig + 1: j + 1 for j, orig in enumerate(perm)}   # 원본 번호 -> 새 제시 번호
+    return sorted(tuple(sorted((pos[a], pos[b]))) for a, b in pairs)
+
+
+def hint_text(pairs):
+    """유사쌍 목록 -> 프롬프트 힌트 한 줄 (개행 포함). 관측 사실만, 순서 주장 없음."""
+    if not pairs:
+        return "Visual note: all 4 images look clearly different from each other.\n"
+    if len(pairs) >= 5:
+        return "Visual note: all 4 images look very similar to each other.\n"
+    body = " ".join(f"Image {a} and Image {b} look visually similar." for a, b in pairs)
+    return f"Visual note: {body}\n"
+
+
 def build_feature_table(sentences_df):
     """(Id, Sentence) DataFrame -> 피처 테이블.
 
@@ -101,8 +133,16 @@ def build_feature_table(sentences_df):
         out["has_gemma"] = out["camera"].notna()
     else:
         out["has_gemma"] = False
+    if os.path.exists(CLIP_TRAIN_PATH):   # CLIP 축: scene_cuts + 유사쌍 개수
+        clip = load_clip_features()
+        dcols = list(PAIR_COLS.values())
+        clip["n_similar"] = (clip[dcols] < CLIP_SIM_THRESHOLD).sum(axis=1)
+        out = out.merge(clip[["Id", "predicted_scene_cuts", "n_similar"]].rename(
+            columns={"predicted_scene_cuts": "scene_cuts"}), on="Id", how="left")
     print(f"피처 테이블: {len(out)}행 | camera_re {out.camera_re.mean():.1%} | "
-          f"gemma 커버 {out.has_gemma.mean():.1%}", flush=True)
+          f"gemma 커버 {out.has_gemma.mean():.1%}"
+          + (f" | scene_cuts 커버 {out.scene_cuts.notna().mean():.1%}" if "scene_cuts" in out else ""),
+          flush=True)
     return out
 
 
