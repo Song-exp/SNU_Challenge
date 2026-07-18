@@ -12,6 +12,7 @@ import torch
 import pandas as pd
 from PIL import Image
 from tqdm import tqdm
+import re
 
 # OpenMP 중복 런타임 방지
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
@@ -47,8 +48,6 @@ def extract_candidates(sentence, gemma_subjects=None):
         candidates = ["object", "person"]
         
     return list(set(candidates))[:4] # 과도한 연산 방지 위해 최대 4개로 제한
-
-import re
 
 def main():
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -123,45 +122,40 @@ def main():
                 frames_data = []
                 
                 for img in images:
-                    w, h = img.size
-                    img_area = w * h
                     inputs = processor(text=[[query]], images=img, return_tensors="pt").to(device)
                     
                     with torch.no_grad():
                         outputs = model(**inputs)
                         
-                    target_sizes = torch.tensor([img.size[::-1]], dtype=torch.float32).to(device)
-                    results = processor.post_process_object_detection(
-                        outputs=outputs, target_sizes=target_sizes, threshold=0.08
-                    )[0]
+                    # transformers 버전에 의존하지 않도록 raw outputs에서 직접 [cx, cy, w, h] 추출
+                    logits = outputs.logits[0]  # shape: (num_boxes, num_queries)
+                    pred_boxes = outputs.pred_boxes[0]  # shape: (num_boxes, 4) [cx, cy, w, h] (0~1 정규화값)
                     
-                    boxes = results["boxes"].cpu().numpy()
-                    scores = results["scores"].cpu().numpy()
+                    scores = torch.sigmoid(logits)[:, 0]  # shape: (num_boxes,)
+                    keep = scores >= 0.08
                     
-                    if len(boxes) == 0:
+                    if not keep.any():
                         frames_data.append("skip")
                         continue
                         
+                    filtered_boxes = pred_boxes[keep].cpu().numpy()
+                    filtered_scores = scores[keep].cpu().numpy()
+                    
                     # 면적이 가장 큰 BBox를 타깃으로 선택
                     best_idx = 0
                     max_area = 0.0
-                    for i, box in enumerate(boxes):
-                        box_w = box[2] - box[0]
-                        box_h = box[3] - box[1]
-                        area = box_w * box_h
+                    for i, box in enumerate(filtered_boxes):
+                        cx, cy, w, h = box
+                        area = w * h
                         if area > max_area:
                             max_area = area
                             best_idx = i
                             
-                    best_box = boxes[best_idx]
-                    best_score = scores[best_idx]
+                    cx, cy, w, h = filtered_boxes[best_idx]
+                    best_score = filtered_scores[best_idx]
                     scores_sum += best_score
                     
-                    x_center = ((best_box[0] + best_box[2]) / 2) / w
-                    y_center = ((best_box[1] + best_box[3]) / 2) / h
-                    area_ratio = max_area / img_area
-                    
-                    frames_data.append(f"X={x_center:.3f}, Y={y_center:.3f}, Area={area_ratio*100:.1f}%")
+                    frames_data.append(f"X={cx:.3f}, Y={cy:.3f}, Area={max_area*100:.1f}%")
                     
                 avg_score = scores_sum / 4.0
                 if avg_score > best_avg_score:
