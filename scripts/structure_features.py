@@ -169,3 +169,48 @@ def make_aug_weights(feature_df, rules, default_mult, out_path):
     print(f"증강 가중 저장: {out_path} | " + ", ".join(f"x{m}: {n}개" for m, n in dist.items())
           + f" | 총 학습 항목 {total}개 상당", flush=True)
     return out_path
+
+
+# ---------------------------------------------------------------- OWL-ViT 기능 연동 추가
+OWLVIT_TRAIN_PATH = "./snu_owlvit_features_train.csv"
+OWLVIT_TEST_PATH = "./snu_owlvit_features_test.csv"
+
+def load_owlvit_features(path=OWLVIT_TRAIN_PATH):
+    """OWL-ViT 피처를 로드합니다. 파일이 없으면 None을 리턴하여 부드러운 스킵을 보장합니다."""
+    import pandas as pd
+    if not os.path.exists(path):
+        print(f"[WARNING] OWL-ViT 피처 파일 없음: {path} (가용한 경우에만 힌트가 주입됩니다)", flush=True)
+        return None
+    df = pd.read_csv(path).set_index("Id")
+    print(f"OWL-ViT 피처 로드 완료: {path} ({len(df)}행)", flush=True)
+    return df
+
+
+def build_comprehensive_hints(clip_pairs, owlvit_features, sid, chrono, perm):
+    """CLIP 유사쌍 정보와 OWL-ViT 사물 궤적 및 면적 정보를 하나로 병합하여 최종 힌트 텍스트를 만듭니다."""
+    hints_lines = []
+    
+    # 1. CLIP 유사쌍 힌트 추가
+    if clip_pairs is not None:
+        hints_lines.append(hint_text(remap_pairs(clip_pairs.get(sid, []), perm)))
+        
+    # 2. OWL-ViT 궤적/크기 힌트 추가
+    if owlvit_features is not None and sid in owlvit_features.index:
+        row = owlvit_features.loc[sid]
+        query = row["query"]
+        if str(query).lower() != "none":
+            # Map original image number -> chronological step index (1-based)
+            orig_to_chrono_step = {orig: step + 1 for step, orig in enumerate(chrono)}
+            
+            # Shuffled presentation images 1 to 4
+            traj_hints = []
+            for k in range(4):
+                orig_num = perm[k] + 1
+                chrono_step = orig_to_chrono_step[orig_num]
+                coord_val = row[f"coord_{chrono_step}"]
+                traj_hints.append(f"- Image {k+1}: {coord_val}")
+                
+            hints_lines.append(f"[Visual Object Trajectory Hints]\nTarget query: '{query}'\n" + "\n".join(traj_hints) + "\n")
+            
+    return "\n".join(hints_lines)
+
