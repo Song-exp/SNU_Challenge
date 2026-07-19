@@ -123,16 +123,27 @@ def main():
 
     image_dir = os.path.join(args.data_dir, "train")
     clip_pairs = None
+    owlvit_features = None
     if prompt_registry.needs_hint(args.prompt):
-        from structure_features import hint_text, load_clip_pairs
+        from structure_features import load_clip_pairs, load_owlvit_features, build_comprehensive_hints
         clip_pairs = load_clip_pairs()
-        print(f"힌트 주입: CLIP 유사쌍 로드 ({len(clip_pairs)}개 Id) — holdout은 원본 제시 순서라 재매핑 없음", flush=True)
+        owlvit_features = load_owlvit_features()
+        print(f"힌트 주입: CLIP 유사쌍 로드 ({len(clip_pairs) if clip_pairs else 0}개 Id), OWL-ViT ({len(owlvit_features) if owlvit_features is not None else 0}개 Id)", flush=True)
     torch.cuda.reset_peak_memory_stats()
     records = []
     t_start = time.time()
 
     for _, row in tqdm(eval_df.iterrows(), total=len(eval_df)):
-        hint = hint_text(clip_pairs.get(row["Id"], [])) if clip_pairs is not None else ""
+        hint = ""
+        if clip_pairs is not None or owlvit_features is not None:
+            # Reconstruct chronological image order from ground truth Answer
+            gt = ast.literal_eval(row["Answer"])
+            chrono = [0] * 4
+            for idx, pos in enumerate(gt):
+                chrono[pos - 1] = idx + 1
+            perm = [0, 1, 2, 3] # Evaluator displays images in input shuffled order [0, 1, 2, 3]
+            hint = build_comprehensive_hints(clip_pairs, owlvit_features, row["Id"], chrono, perm)
+            
         messages = get_prompt_message(row, image_dir, args.prompt, hint)
         text = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
         image_inputs, video_inputs = process_vision_info(messages)

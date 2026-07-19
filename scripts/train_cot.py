@@ -131,11 +131,11 @@ def load_gemma_events(df):
 
 
 def build_training_items_cot(df, image_dir, aug_mult, rng, splitter, events_from="spacy",
-                             clip_pairs=None):
+                             clip_pairs=None, owlvit_features=None):
     """train.py의 build_training_items와 동일한 증강 규약 + CoT target.
     이벤트 분해는 샘플당 1회(변형 불변), target 리스트만 변형별로 재계산.
     clip_pairs가 있으면 변형별 재매핑 힌트를 item["hint"]에 저장 (v7_cot_hint용)."""
-    from structure_features import hint_text, remap_pairs
+    from structure_features import build_comprehensive_hints
     if events_from == "gemma":
         print("이벤트 소스: gemma 라벨", flush=True)
         events_by_id = load_gemma_events(df)
@@ -166,8 +166,8 @@ def build_training_items_cot(df, image_dir, aug_mult, rng, splitter, events_from
             shown_files = [files[j] for j in perm]
             target = [shown_files.index(f) + 1 for f in time_files]
             hint = ""
-            if clip_pairs is not None:
-                hint = hint_text(remap_pairs(clip_pairs.get(row["Id"], []), perm))
+            if clip_pairs is not None or owlvit_features is not None:
+                hint = build_comprehensive_hints(clip_pairs, owlvit_features, row["Id"], chrono, perm)
             items.append({
                 "id": row["Id"],
                 "sentence": row["Sentence"],
@@ -217,10 +217,12 @@ def main():
     splitter = EventSplitter() if args.events_from == "spacy" else None
 
     clip_pairs = None
+    owlvit_features = None
     if prompt_registry.needs_hint(args.prompt):
-        from structure_features import load_clip_pairs
+        from structure_features import load_clip_pairs, load_owlvit_features
         clip_pairs = load_clip_pairs()
-        print(f"힌트 주입: CLIP 유사쌍 {len(clip_pairs)}개 Id (프롬프트 {args.prompt})", flush=True)
+        owlvit_features = load_owlvit_features()
+        print(f"힌트 주입: CLIP 유사쌍 {len(clip_pairs) if clip_pairs else 0}개 Id, OWL-ViT {len(owlvit_features) if owlvit_features is not None else 0}개 Id (프롬프트 {args.prompt})", flush=True)
 
     # ---- 데이터 ------------------------------------------------------------------------------
     train_df = pd.read_csv(os.path.join(args.data_dir, "train.csv"))
@@ -230,7 +232,7 @@ def main():
     if args.preview:  # target 생성 미리보기 — 학습 없이 형식 눈검사 (미니 풀과 같은 시드로 뽑음)
         sample = train_df.sample(n=1000, random_state=args.seed).head(args.preview)
         items = build_training_items_cot(sample, os.path.join(args.data_dir, "train"),
-                                         2, rng, splitter, args.events_from, clip_pairs)
+                                         2, rng, splitter, args.events_from, clip_pairs, owlvit_features)
         for it in items:
             print(f"\n===== {it['id']} =====\n문장: {it['sentence']}")
             if it["hint"]:
@@ -242,7 +244,7 @@ def main():
         train_df = train_df.sample(n=args.max_samples, random_state=args.seed).reset_index(drop=True)
     image_dir = os.path.join(args.data_dir, "train")
     items = build_training_items_cot(train_df, image_dir, args.aug_mult, rng, splitter,
-                                     args.events_from, clip_pairs)
+                                     args.events_from, clip_pairs, owlvit_features)
     rng.shuffle(items)
     tgt_chars = sum(len(i["target_text"]) for i in items) // max(len(items), 1)
     print(f"기반 {len(train_df)}개 x 증강 {args.aug_mult} = 학습 항목 {len(items)}개 "
