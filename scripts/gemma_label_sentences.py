@@ -136,6 +136,7 @@ def derive_test_outputs(parts_dir):
     if not rows:
         print("파생 생성 건너뜀: 성공 라벨 없음", flush=True)
         return
+    from structure_features import is_cam_phrase
     df = pd.DataFrame(rows).drop_duplicates("Id", keep="last")
     feat = pd.DataFrame({
         "Id": df["Id"],
@@ -144,6 +145,8 @@ def derive_test_outputs(parts_dir):
         "n_events": df["events"].map(len),
         "n_subj": df["subjects"].map(len),
         "n_markers": df["temporal_markers"].map(len),
+        "n_events_noncam": df["events"].map(lambda ev: sum(not is_cam_phrase(e) for e in ev)),
+        "n_subj_noncam": df["subjects"].map(lambda ss: sum(not is_cam_phrase(s) for s in ss)),
     })
     feat_path = os.path.join(OUT_DIR, "test_features.csv")
     feat.to_csv(feat_path, index=False)
@@ -157,7 +160,7 @@ def derive_test_outputs(parts_dir):
     })
     hints_path = os.path.join(OUT_DIR, "test_hints.csv")
     hints.to_csv(hints_path, index=False)
-    print(f"파생 생성: {feat_path} (분류용) + {hints_path} (추론용) — {len(df)}행", flush=True)
+    print(f"파생 생성: {feat_path} (분류용) + {hints_path} (추론용) = {len(df)}행", flush=True)
 
 
 def build_targets(train_count):

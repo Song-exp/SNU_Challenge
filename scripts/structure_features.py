@@ -20,6 +20,13 @@ CAM_RE = re.compile(
     r"|view (shifts?|changes?)|close-?up|focus(es)? on|angle|footage|transitions?|frame)\b", re.I)
 
 GEMMA_DIR = "./outputs/gemma_labels"
+# 카메라 계열 주어/사건 판별 (구절 서두 기준 — "moves closer to the camera" 같은 목적어 언급은 제외)
+CAM_PHRASE_STARTS = ("the camera", "camera", "the scene", "the view", "the screen",
+                     "the shot", "the frame", "the video", "the footage")
+
+
+def is_cam_phrase(phrase):
+    return str(phrase).strip().lower().startswith(CAM_PHRASE_STARTS)
 CLIP_TRAIN_PATH = "./snu_clip_features.csv"        # 팀원 산출물 (train 9,535행)
 CLIP_TEST_PATH = "./snu_clip_features_test.csv"    # 팀원 산출물 예정 (test 819행, 같은 스키마)
 CLIP_REQUIRED_COLS = ["Id", "predicted_scene_cuts",
@@ -64,6 +71,10 @@ def load_gemma_labels():
                     "camera": bool(r["camera_language"]), "viewer": bool(r["viewer_language"]),
                     "n_events": len(r["events"]), "n_subj": len(r["subjects"]),
                     "n_markers": len(r["temporal_markers"]),
+                    # 카메라 주어/사건 제외 카운트 — camO는 gemma가 camera를 주어·사건에
+                    # 포함하므로(프롬프트 규칙) 원본 카운트는 camera 축과 교란됨 (7/18 실측)
+                    "n_events_noncam": sum(not is_cam_phrase(e) for e in r["events"]),
+                    "n_subj_noncam": sum(not is_cam_phrase(s) for s in r["subjects"]),
                     "events": r["events"], "subjects": r["subjects"],
                     "markers": r["temporal_markers"],
                 }
@@ -128,7 +139,8 @@ def build_feature_table(sentences_df):
     out["camera_re"] = out["Sentence"].map(camera_regex)
     gemma = load_gemma_labels()
     if len(gemma):
-        cols = ["Id", "camera", "viewer", "n_events", "n_subj", "n_markers"]
+        cols = ["Id", "camera", "viewer", "n_events", "n_subj", "n_markers",
+                "n_events_noncam", "n_subj_noncam"]
         out = out.merge(gemma[cols], on="Id", how="left")
         out["has_gemma"] = out["camera"].notna()
     else:
@@ -144,6 +156,31 @@ def build_feature_table(sentences_df):
           + (f" | scene_cuts 커버 {out.scene_cuts.notna().mean():.1%}" if "scene_cuts" in out else ""),
           flush=True)
     return out
+
+
+def assign_types(feature_df, events_cuts=(2,), density_col="n_events_noncam"):
+    """구조 수치 기반 유형 부여 — 1차 유형(서사 밀도 x camera) + 보조 태그.
+
+    7/18 개정: 밀도 축 기본 = **비카메라 사건 수** (camO의 카운트 부풀림 교란 제거,
+    "카메라 표현이 빈약 서사를 구제한다" 발견의 근거). 기본 컷 (2,) = sparse(<=2)/dense(>=3)
+    2구간 x camera = 4유형 — holdout 분리 21.6/48.7/~53/~74%, 셀 n=39~74.
+    events_cuts에 (lo, hi)를 주면 sparse/mid/rich 3구간.
+    train/test에 같은 함수를 적용해야 유형 정의가 어긋나지 않는다 (단일 진실).
+    """
+    import pandas as pd
+    df = feature_df.copy()
+    if len(events_cuts) == 1:
+        bins, labels = [-1, events_cuts[0], 99], ["sparse", "dense"]
+    else:
+        bins, labels = [-1, events_cuts[0], events_cuts[1], 99], ["sparse", "mid", "rich"]
+    density = pd.cut(df[density_col], bins, labels=labels)
+    cam = df["camera"].map({True: "camO", False: "camX"})
+    df["stype"] = density.astype(str) + "_" + cam
+    df.loc[density.isna() | cam.isna(), "stype"] = None
+    df["tag_multi_subj"] = df["n_subj_noncam"] >= 2   # 보조 태그 (유형 셀은 쪼개지 않음)
+    df["tag_no_marker"] = df["n_markers"] == 0
+    df["tag_viewer"] = df["viewer"].fillna(False)
+    return df
 
 
 def make_aug_weights(feature_df, rules, default_mult, out_path):

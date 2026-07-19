@@ -36,12 +36,17 @@ def keep_system_awake():
 
 
 def train_running() -> bool:
-    """다른 학습 프로세스(train.py/train_cot.py)가 살아 있으면 True. 확인 실패 시 True(안전측)."""
+    """다른 학습 프로세스(train.py/train_cot.py)가 살아 있으면 True. 확인 실패 시 True(안전측).
+
+    ⚠️ 큐 자신의 커맨드라인에도 --script train.py 문자열이 들어가므로(7/18 데드락 사고)
+    train_queue.py 프로세스는 반드시 제외할 것.
+    """
     try:
         out = subprocess.run(
             ["powershell", "-NoProfile", "-Command",
              "@(Get-CimInstance Win32_Process -Filter \"Name='python.exe'\" "
-             "| Where-Object { $_.CommandLine -match 'train(_cot)?\\.py' }).Count"],
+             "| Where-Object { $_.CommandLine -match 'train(_cot)?\\.py' "
+             "-and $_.CommandLine -notmatch 'train_queue\\.py' }).Count"],
             capture_output=True, text=True, timeout=60,
         )
         return int(out.stdout.strip()) > 0

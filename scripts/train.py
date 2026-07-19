@@ -23,6 +23,9 @@ import ast
 import ctypes
 import json
 import os
+
+# VRAM 단편화 완화 — 8GB에서 peak 6.5GB로 돌리는 구성이라 스파이크 여유가 얇다 (7/19 OOM 대응)
+os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
 import random
 import time
 from datetime import datetime
@@ -277,6 +280,7 @@ def main():
     torch.cuda.reset_peak_memory_stats()
     t_start = time.time()
     opt_step, micro_step, loss_acc = 0, 0, 0.0
+    n_skipped = 0
     log_rows, stop_reason = [], "완주"
 
     try:
@@ -285,9 +289,21 @@ def main():
                 rng.shuffle(items)
             pbar = tqdm(items, desc=f"epoch {epoch + 1}/{args.epochs}")
             for item in pbar:
-                inputs = encode(item).to(model.device)
-                loss = model(**inputs).loss / args.grad_accum
-                loss.backward()
+                # 특정 샘플이 VRAM 스파이크로 OOM을 내는 경우가 있다 (7/19 exp16, 같은 시드로
+                # 540스텝에서 2회 재현). 해당 항목만 건너뛰고 학습은 계속한다.
+                try:
+                    inputs = encode(item).to(model.device)
+                    loss = model(**inputs).loss / args.grad_accum
+                    loss.backward()
+                except Exception as e:
+                    if "out of memory" not in str(e).lower():
+                        raise
+                    n_skipped += 1
+                    print(f"\n[OOM 스킵 {n_skipped}] {item['id']} (opt_step {opt_step}) - 계속 진행", flush=True)
+                    del inputs
+                    optimizer.zero_grad(set_to_none=True)
+                    torch.cuda.empty_cache()
+                    continue
                 loss_acc += loss.item()
                 micro_step += 1
 
@@ -333,7 +349,8 @@ def main():
     save_adapter("최종")
     elapsed = time.time() - t_start
     print(f"\n종료({stop_reason}): {opt_step} 스텝, {micro_step} 항목, {elapsed / 3600:.2f}시간, "
-          f"peak VRAM {torch.cuda.max_memory_allocated() / 1e9:.2f}GB", flush=True)
+          f"peak VRAM {torch.cuda.max_memory_allocated() / 1e9:.2f}GB"
+          + (f", OOM 스킵 {n_skipped}개" if n_skipped else ""), flush=True)
     print(f"다음: python scripts/eval_zero_shot.py --model {args.model} --adapter {adapter_dir}"
           + (" --load-4bit" if args.load_4bit else "")
           + (f" --prompt {args.prompt}" if args.prompt != "v1_list" else ""), flush=True)
