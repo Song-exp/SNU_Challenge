@@ -158,6 +158,8 @@ def main():
     parser.add_argument("--snapshot-steps", type=int, default=0,
                         help="N스텝마다 checkpoints/step_N/ 에 별도 스냅샷 저장 (학습 곡선용, 0=끔)")
     parser.add_argument("--log-steps", type=int, default=10)
+    parser.add_argument("--empty-cache-steps", type=int, default=50,
+                        help="N 옵티마이저 스텝마다 CUDA 캐시 반환 (단편화 완화, 0=끔)")
     parser.add_argument("--data-dir", default="./snuaichallenge_data/")
     args = parser.parse_args()
 
@@ -274,9 +276,11 @@ def main():
 
     def save_adapter(tag):
         model.save_pretrained(adapter_dir)
+        torch.cuda.empty_cache()     # 저장 경로가 잡은 임시 버퍼 반환
         print(f"[{tag}] 어댑터 저장 -> {adapter_dir}", flush=True)
 
     # ---- 학습 루프 ---------------------------------------------------------------------------
+    torch.cuda.empty_cache()          # 모델 로드 과정의 잔여 버퍼 반환 후 시작
     torch.cuda.reset_peak_memory_stats()
     t_start = time.time()
     opt_step, micro_step, loss_acc = 0, 0, 0.0
@@ -291,21 +295,23 @@ def main():
             for item in pbar:
                 # 특정 샘플이 VRAM 스파이크로 OOM을 내는 경우가 있다 (7/19 exp16, 같은 시드로
                 # 540스텝에서 2회 재현). 해당 항목만 건너뛰고 학습은 계속한다.
+                inputs = loss = None
                 try:
                     inputs = encode(item).to(model.device)
                     loss = model(**inputs).loss / args.grad_accum
                     loss.backward()
                 except Exception as e:
                     if "out of memory" not in str(e).lower():
-                        raise
+                        raise           # OOM이 아닌 예외는 숨기지 않는다
                     n_skipped += 1
                     print(f"\n[OOM 스킵 {n_skipped}] {item['id']} (opt_step {opt_step}) - 계속 진행", flush=True)
-                    del inputs
-                    optimizer.zero_grad(set_to_none=True)
+                    inputs = loss = None            # encode 단계 실패로 미바인딩일 수 있어 del 대신 재할당
+                    optimizer.zero_grad(set_to_none=True)   # 부분 누적 grad 폐기
                     torch.cuda.empty_cache()
                     continue
                 loss_acc += loss.item()
                 micro_step += 1
+                inputs = loss = None    # 활성 텐서 참조 즉시 해제 (다음 항목 전에 반환)
 
                 if micro_step % args.grad_accum == 0:
                     torch.nn.utils.clip_grad_norm_(trainable, 1.0)
@@ -322,6 +328,8 @@ def main():
                             "lr": scheduler.get_last_lr()[0],
                             "sec_per_item": round(elapsed / micro_step, 2),
                             "peak_vram_gb": round(torch.cuda.max_memory_allocated() / 1e9, 2),
+                            # reserved-allocated 격차가 벌어지면 단편화 진행 신호 (7/19 OOM 진단용)
+                            "reserved_vram_gb": round(torch.cuda.max_memory_reserved() / 1e9, 2),
                             "elapsed_min": round(elapsed / 60, 1),
                         }
                         log_rows.append(row)
@@ -329,11 +337,16 @@ def main():
                         pbar.set_postfix(loss=row["loss"], vram=row["peak_vram_gb"])
                     loss_acc = 0.0
 
+                    # 주기적 캐시 반환 — 단편화 누적 완화 (동기화 비용 수십 ms, N스텝당 1회)
+                    if args.empty_cache_steps and opt_step % args.empty_cache_steps == 0:
+                        torch.cuda.empty_cache()
+
                     if opt_step % args.save_steps == 0:
                         save_adapter(f"step {opt_step}")
                     if args.snapshot_steps and opt_step % args.snapshot_steps == 0:
                         snap_dir = os.path.join(out_dir, "checkpoints", f"step_{opt_step:05d}")
                         model.save_pretrained(snap_dir)
+                        torch.cuda.empty_cache()     # 저장 중 잡은 임시 버퍼 반환
                         print(f"[snapshot] 스텝 {opt_step} -> {snap_dir}", flush=True)
                     if args.max_steps and opt_step >= args.max_steps:
                         stop_reason = f"max_steps({args.max_steps}) 도달"
