@@ -102,7 +102,6 @@ def main():
     print("\nCalculating CLIP and MSE distances for all video sets...")
     
     ids = []
-    predicted_scene_cuts = []
     
     # CLIP lists
     clip_max_list, clip_mean_list, clip_ratios = [], [], []
@@ -166,12 +165,7 @@ def main():
         mean_mse = np.mean(mse_dist_arr)
         ratio_mse = max_mse / mean_mse if mean_mse > 0 else 1.0
         
-        # 장면 전환 판단 (CLIP 비비교쌍 0.20 기준)
-        similar_clip_pairs = sum([1 for c in clip_dist_arr if c < CLIP_THRESHOLD])
-        cuts = map_similar_pairs_to_cuts(similar_clip_pairs, max_clip)
-        
         ids.append(row['Id'])
-        predicted_scene_cuts.append(cuts)
         
         # Append CLIP
         clip_max_list.append(max_clip)
@@ -189,7 +183,6 @@ def main():
         
     res_df = pd.DataFrame({
         'Id': ids,
-        'predicted_scene_cuts': predicted_scene_cuts,
         # CLIP Features
         'Max_clip': clip_max_list,
         'Mean_clip': clip_mean_list,
@@ -218,18 +211,7 @@ def main():
     res_df['Max_mse_scaled'] = scaled_mse[:, 0]
     res_df['Mean_mse_scaled'] = scaled_mse[:, 1]
     
-    # 6. 전수 데이터 통계 출력
-    print("\n" + "="*70)
-    print("📊 [9,535개 비디오 전수조사] 안엄격 기준 장면 전환 횟수(0~3회) 분포")
-    print("="*70)
-    cut_counts = res_df['predicted_scene_cuts'].value_counts().sort_index()
-    total_samples = len(res_df)
-    for cuts, count in cut_counts.items():
-        print(f"  🎬 장면 전환 {cuts}회 비디오 (안엄격): {count:5d}개 ({(count/total_samples*100):.2f}%)")
-    print("-" * 70)
-    print(f"👉 총 비디오 세트 수        : {total_samples:5d}개 (100.00%)")
-    
-    # 6.5. 통계 요약표 출력
+    # 6. 통계 요약표 출력
     print("\n" + "="*75)
     print("📊 [원본 CLIP & MSE 피처] 통계 요약")
     print("="*75)
