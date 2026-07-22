@@ -64,6 +64,27 @@ os.makedirs(CFG["ckpt"], exist_ok=True)
 random.seed(CFG["seed"]); torch.manual_seed(CFG["seed"])
 rng = random.Random(CFG["seed"])
 
+# ---- 2.5 세션 간 재개 자동화 -------------------------------------------------
+# Kaggle /kaggle/working 은 세션 종료 시 사라짐. 이전 세션의 체크포인트가
+# input(이전 버전 Output을 Add Input으로 추가한 것)에 있으면 working으로 복사.
+import shutil
+def restore_ckpt_from_input():
+    if os.path.exists(os.path.join(CFG["ckpt"], "adapter_model.safetensors")):
+        return "working"   # 같은 세션에 이미 있음
+    # input 아래 어디든 meta.json + adapter_model.safetensors 쌍을 찾음
+    for meta in glob.glob("/kaggle/input/**/meta.json", recursive=True):
+        d = os.path.dirname(meta)
+        if os.path.exists(os.path.join(d, "adapter_model.safetensors")):
+            for f in os.listdir(d):
+                shutil.copy(os.path.join(d, f), os.path.join(CFG["ckpt"], f))
+            step = json.load(open(meta)).get("step", 0)
+            print(f"♻️ 이전 세션 체크포인트 복원: {d} (step {step})")
+            return "input"
+    return None
+_restored = restore_ckpt_from_input()
+if _restored is None:
+    print("🆕 체크포인트 없음 → 처음부터 학습 시작")
+
 # ---- 4. 데이터 준비 -----------------------------------------------------------
 def chrono(ans):
     c=[0]*4
