@@ -58,7 +58,8 @@ CFG = dict(
     #   aug_mult=1 : 재셔플 증강 끄고 원본 제시순서만 (항목 23814→9235, 절반 이하)
     #   max_pixels : 512×384→로컬 수준으로 낮춰 이미지 토큰↓ = 항목당 속도↑ (최대 레버)
     #   max_steps  : 안전 상한. 시간 남으면 늘려도 됨
-    aug_mult=1, hard_shuffle=True, lr=1e-4, lora_r=16, lora_alpha=32,
+    # hard_shuffle=False: 어려운 셔플은 Public -1.1%p 역효과 실측(exp20 0.846<exp17 0.857) → 무작위 셔플
+    aug_mult=1, hard_shuffle=False, lr=1e-4, lora_r=16, lora_alpha=32,
     lora_targets="q_proj,k_proj,v_proj,o_proj", grad_accum=16,
     max_pixels=308*308, warmup_ratio=0.03, seed=42,
     max_steps=0,                    # 0=전체(aug1이면 ~577스텝). 시간 부족시 500 등으로 캡
@@ -239,13 +240,18 @@ print(f"어댑터: {CFG['out']}")
 RUN_INFERENCE = False   # ← 학습 완주 후 True로 바꾸고 이 아래 셀 실행
 
 if RUN_INFERENCE:
+    # 우도 K=4 순열 TTA: 로컬 holdout에서 +4.76%p 실측 (최대 레버).
+    # 이미지를 4가지 순환 배치로 제시→각 배치서 24후보 채점→원본좌표로 점수 합산→argmax.
     from itertools import permutations
     CANDS=[list(p) for p in permutations([1,2,3,4])]
-    def tgt_str(a):
+    PERMS=[[0,1,2,3],[1,2,3,0],[2,3,0,1],[3,0,1,2]]   # K=4 순환이동 (라틴방진)
+    def tgt_str(answer, perm):
+        # 정답후보를 perm 배치 하에서 채점할 문자열 (test_perm_coords 검증본)
         c=[0]*4
-        for i,pos in enumerate(a): c[pos-1]=i+1
-        f=[1,2,3,4]; tf=[f[n-1] for n in c]
-        return str([f.index(x)+1 for x in tf])
+        for i,pos in enumerate(answer): c[pos-1]=i+1
+        files=[1,2,3,4]; tf=[files[n-1] for n in c]
+        shown=[files[j] for j in perm]
+        return str([shown.index(f)+1 for f in tf])
     model.eval()
     inner=model
     for _ in range(4):
@@ -256,30 +262,36 @@ if RUN_INFERENCE:
     recs=[]
     for _,row in tqdm(test.iterrows(),total=len(test)):
         files=[row["Input_1"],row["Input_2"],row["Input_3"],row["Input_4"]]
-        content=[]
-        for i,f in enumerate(files):
-            content+=[{"type":"image","image":os.path.join(DATA_DIR,"test",row["Id"],f)},
-                      {"type":"text","text":f"\nImage {i+1}\n"}]
-        content.append({"type":"text","text":CFG["prompt_v5"].format(s=row["Sentence"])})
-        m=[{"role":"user","content":content}]
-        pt=proc.apply_chat_template(m,tokenize=False,add_generation_prompt=True)
-        ii,vi=process_vision_info(m); enc=proc(text=[pt],images=ii,videos=vi,return_tensors="pt").to(dev)
-        plen=enc["input_ids"].shape[1]
-        atok=[proc.tokenizer(tgt_str(a),add_special_tokens=False)["input_ids"]+eos for a in CANDS]
-        L=len(atok[0]); amat=torch.tensor(atok,device=dev)
-        with torch.no_grad():
-            o1=model(**enc,use_cache=True); pkv=o1.past_key_values; rd=inner.rope_deltas.item()
-            flp=torch.log_softmax(o1.logits[:,-1,:].float(),-1)
-            pos=(torch.arange(plen,plen+L,device=dev)+rd).view(1,1,-1).expand(3,24,-1).contiguous()
-            pkv.batch_repeat_interleave(24)
-            o2=model(input_ids=amat,position_ids=pos,past_key_values=pkv,
-                     attention_mask=torch.ones(24,plen+L,device=dev,dtype=torch.long),use_cache=True)
-            lp0=flp[0,amat[:,0]]; rest=torch.log_softmax(o2.logits[:,:-1].float(),-1)
-            tot=lp0+rest[torch.arange(24)[:,None],torch.arange(L-1)[None,:],amat[:,1:]].sum(1)
-            best=CANDS[tot.argmax()]
+        score={tuple(a):0.0 for a in CANDS}
+        for perm in PERMS:
+            shown=[files[j] for j in perm]                 # 이 배치에서 Image1~4로 제시할 파일
+            content=[]
+            for i,f in enumerate(shown):
+                content+=[{"type":"image","image":os.path.join(DATA_DIR,"test",row["Id"],f)},
+                          {"type":"text","text":f"\nImage {i+1}\n"}]
+            content.append({"type":"text","text":CFG["prompt_v5"].format(s=row["Sentence"])})
+            m=[{"role":"user","content":content}]
+            pt=proc.apply_chat_template(m,tokenize=False,add_generation_prompt=True)
+            ii,vi=process_vision_info(m); enc=proc(text=[pt],images=ii,videos=vi,return_tensors="pt").to(dev)
+            plen=enc["input_ids"].shape[1]
+            atok=[proc.tokenizer(tgt_str(a,perm),add_special_tokens=False)["input_ids"]+eos for a in CANDS]
+            L=len(atok[0]); amat=torch.tensor(atok,device=dev)
+            with torch.no_grad():
+                o1=model(**enc,use_cache=True); pkv=o1.past_key_values; rd=inner.rope_deltas.item()
+                flp=torch.log_softmax(o1.logits[:,-1,:].float(),-1)
+                pos=(torch.arange(plen,plen+L,device=dev)+rd).view(1,1,-1).expand(3,24,-1).contiguous()
+                pkv.batch_repeat_interleave(24)
+                o2=model(input_ids=amat,position_ids=pos,past_key_values=pkv,
+                         attention_mask=torch.ones(24,plen+L,device=dev,dtype=torch.long),use_cache=True)
+                lp0=flp[0,amat[:,0]]; rest=torch.log_softmax(o2.logits[:,:-1].float(),-1)
+                tot=lp0+rest[torch.arange(24)[:,None],torch.arange(L-1)[None,:],amat[:,1:]].sum(1)
+            for a,s in zip(CANDS, tot.tolist()):
+                score[tuple(a)]+=s                          # 원본좌표로 4배치 점수 합산
+        best=max(CANDS,key=lambda a:score[tuple(a)])
         sub=[0]*4
         for i,n in enumerate(best): sub[n-1]=i+1
         recs.append({"Id":row["Id"],"Answer":str(sub)})
     out=pd.DataFrame(recs)
     out.to_csv("/kaggle/working/submission.csv",index=False)
-    print(f"✅ submission.csv 생성 ({len(out)}행). 오른쪽 Output에서 다운로드 → 리더보드 제출!")
+    print(f"✅ submission.csv 생성 ({len(out)}행, 우도 K=4). Output에서 다운로드 → 제출!")
+    print("⚠️ K=4는 test 819개에 ~수시간 소요 (T4). 세션 시간 여유 확인.")
