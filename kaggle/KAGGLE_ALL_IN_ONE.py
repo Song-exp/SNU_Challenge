@@ -54,11 +54,16 @@ CFG = dict(
                "correct chronological order of these images to match the sentence below.\n"
                'Sentence: "{s}"\nProvide the answer ONLY as a Python list of integers. '
                "Example: [1, 2, 3, 4]"),
-    aug_mult=2, hard_shuffle=True, lr=1e-4, lora_r=16, lora_alpha=32,
+    # ── 1세션(~11h) 완주용 경량 설정 (8B가 T4에서 느려 33h→~11h로 축소) ──
+    #   aug_mult=1 : 재셔플 증강 끄고 원본 제시순서만 (항목 23814→9235, 절반 이하)
+    #   max_pixels : 512×384→로컬 수준으로 낮춰 이미지 토큰↓ = 항목당 속도↑ (최대 레버)
+    #   max_steps  : 안전 상한. 시간 남으면 늘려도 됨
+    aug_mult=1, hard_shuffle=True, lr=1e-4, lora_r=16, lora_alpha=32,
     lora_targets="q_proj,k_proj,v_proj,o_proj", grad_accum=16,
-    max_pixels=512*384, warmup_ratio=0.03, seed=42,
+    max_pixels=308*308, warmup_ratio=0.03, seed=42,
+    max_steps=0,                    # 0=전체(aug1이면 ~577스텝). 시간 부족시 500 등으로 캡
     out="/kaggle/working/adapter", ckpt="/kaggle/working/ckpt",
-    save_every=100, max_seconds=11.3*3600,
+    save_every=50, max_seconds=11.3*3600,
 )
 os.makedirs(CFG["ckpt"], exist_ok=True)
 random.seed(CFG["seed"]); torch.manual_seed(CFG["seed"])
@@ -168,6 +173,8 @@ else:
 model.print_trainable_parameters(); model.train()
 
 total=(len(items))//CFG["grad_accum"]
+if CFG["max_steps"]:
+    total=min(total, CFG["max_steps"])
 trainable=[p for p in model.parameters() if p.requires_grad]
 opt=torch.optim.AdamW(trainable,lr=CFG["lr"],weight_decay=0.01)
 sched=get_cosine_schedule_with_warmup(opt,int(total*CFG["warmup_ratio"]),total)
@@ -214,6 +221,8 @@ try:
             if step%10==0: pbar.set_postfix(loss=round(lacc,4),step=step);
             lacc=0.0
             if step%CFG["save_every"]==0: save_ckpt(step)
+            if CFG["max_steps"] and step>=CFG["max_steps"]:
+                print(f"🎯 max_steps({CFG['max_steps']}) 도달 — 저장 후 종료"); save_ckpt(step); raise KeyboardInterrupt
             if time.time()-t0>CFG["max_seconds"]:
                 print("⏰ 시간한도 — 저장 후 종료. 노트북 재실행하면 이어감."); save_ckpt(step); raise KeyboardInterrupt
 except KeyboardInterrupt: pass
