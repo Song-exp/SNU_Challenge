@@ -16,6 +16,7 @@ def pip(*pkgs):
 pip("transformers==5.13.0", "peft", "bitsandbytes", "accelerate", "qwen-vl-utils")
 
 import os, ast, json, glob, random, time
+os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")  # OOM 단편화 완화
 import pandas as pd, torch
 from tqdm.auto import tqdm
 
@@ -166,7 +167,11 @@ quant=BitsAndBytesConfig(load_in_4bit=True,bnb_4bit_quant_type="nf4",
 model=AutoModelForImageTextToText.from_pretrained(CFG["model_id"],dtype=torch.bfloat16,
                                                   device_map="auto",quantization_config=quant)
 proc=AutoProcessor.from_pretrained(CFG["model_id"],max_pixels=CFG["max_pixels"])
-model=prepare_model_for_kbit_training(model,use_gradient_checkpointing=True)
+# ⚠️ prepare_model_for_kbit_training의 fp32 업캐스트(+2.3GB)가 T4에서 OOM →
+#    업캐스트 생략하고 gradient checkpointing만 직접 켠다 (8B가 T4에 들어가게).
+#    layernorm fp32 안정화는 포기하나, 4bit QLoRA 학습엔 실용상 문제 없음.
+model.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
+model.enable_input_require_grads()
 model.config.use_cache=False
 
 resume=0; meta=os.path.join(CFG["ckpt"],"meta.json")
