@@ -2,8 +2,9 @@
 # ★★★ FINAL_8B_v2 — 최종본 (2026-07-23) ★★★
 # ================================================================================
 # 설정: 8B + v5_reorder + 타깃증강(EDA) + 무작위셔플 + max_pixels 224 + 우도K4 추론
-# ✅ 첫 셀 실행 시 "학습 항목 약 17000개" 떠야 최신본 (23814면 옛날 코드)
-# ✅ aug_mult=1, max_pixels=224×224 (아래 CFG에서 확인 가능)
+# ✅ 첫 셀 실행 시 "학습 항목 약 11907개" 떠야 최신본 (23814면 aug_half CSV 미첨부)
+# ✅ aug_weights_exp16_half.csv 필요 (sparse_camX×2/나머지×1, EDA 유지·총량 절반)
+# ✅ aug_mult=1, max_pixels=224×224
 # 사용법: 이 파일 전체를 Kaggle 노트북 셀 하나에 복사 → 실행.
 #         Add Input: 대회데이터 + aux_upload / GPU T4×2 / Commit 실행
 # ================================================================================
@@ -42,7 +43,8 @@ def find_csv(name):
     hits = glob.glob(f"/kaggle/input/**/{name}", recursive=True)
     return hits[0] if hits else None
 
-AUG_WEIGHTS = find_csv("aug_weights_exp16.csv")   # snu-ai-aux 데이터셋에서
+# aug_weights: _half(sparse_camX×2/나머지×1, 항목~11907) 우선, 없으면 원본(×4/×2, 23814)
+AUG_WEIGHTS = find_csv("aug_weights_exp16_half.csv") or find_csv("aug_weights_exp16.csv")
 CLIP_FEATS  = find_csv("snu_clip_features.csv")
 HOLDOUT     = find_csv("holdout_300.csv")
 print(f"aug_weights: {AUG_WEIGHTS}\nclip: {CLIP_FEATS}\nholdout: {HOLDOUT}")
