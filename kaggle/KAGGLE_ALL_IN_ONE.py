@@ -54,15 +54,16 @@ CFG = dict(
                "correct chronological order of these images to match the sentence below.\n"
                'Sentence: "{s}"\nProvide the answer ONLY as a Python list of integers. '
                "Example: [1, 2, 3, 4]"),
-    # ── 1세션(~11h) 완주용 경량 설정 (8B가 T4에서 느려 33h→~11h로 축소) ──
-    #   aug_mult=1 : 재셔플 증강 끄고 원본 제시순서만 (항목 23814→9235, 절반 이하)
-    #   max_pixels : 512×384→로컬 수준으로 낮춰 이미지 토큰↓ = 항목당 속도↑ (최대 레버)
-    #   max_steps  : 안전 상한. 시간 남으면 늘려도 됨
-    # hard_shuffle=False: 어려운 셔플은 Public -1.1%p 역효과 실측(exp20 0.846<exp17 0.857) → 무작위 셔플
+    # ── T4×2 마감(7/24) 완주용 설정 (200초/스텝 = 82h → 축소) ──
+    # EDA 인사이트는 전부 유지: aug_weights(sparse_camX ×4 타깃증강)가 aug_mult보다 우선
+    #   → aug_mult=1이어도 sparse_camX는 ×4로 강조됨 (EDA 핵심 살아있음).
+    #   aug_mult=1 : 일반샘플 재셔플 반복만 끔 (성능 부차적, 인사이트 무관)
+    #   max_pixels=224²: 이미지 토큰 축소 = 순수 속도 레버 (EDA와 무관). 82h→~35h
+    # hard_shuffle=False: 어려운 셔플은 Public -1.1%p 역효과 실측
     aug_mult=1, hard_shuffle=False, lr=1e-4, lora_r=16, lora_alpha=32,
     lora_targets="q_proj,k_proj,v_proj,o_proj", grad_accum=16,
-    max_pixels=308*308, warmup_ratio=0.03, seed=42,
-    max_steps=0,                    # 0=전체(aug1이면 ~577스텝). 시간 부족시 500 등으로 캡
+    max_pixels=224*224, warmup_ratio=0.03, seed=42,
+    max_steps=0,                    # 0=전체. 시간 부족시 500 등으로 캡 (부분학습도 8B>4B 가능)
     out="/kaggle/working/adapter", ckpt="/kaggle/working/ckpt",
     save_every=50, max_seconds=11.3*3600,
 )
