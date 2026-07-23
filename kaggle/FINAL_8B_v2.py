@@ -164,8 +164,14 @@ from qwen_vl_utils import process_vision_info
 
 quant=BitsAndBytesConfig(load_in_4bit=True,bnb_4bit_quant_type="nf4",
                          bnb_4bit_compute_dtype=torch.bfloat16,bnb_4bit_use_double_quant=True)
+# device_map="auto"가 GPU 여유를 과소평가해 CPU로 오프로드 시도→4bit 충돌 에러.
+# 두 T4에 명시적 max_memory 지정(CPU 오프로드 차단). 단일 GPU면 {0:"14GiB"}만.
+n_gpu = torch.cuda.device_count()
+max_mem = {i: "14GiB" for i in range(n_gpu)}   # T4 15GB 중 여유 두고 14
+print(f"GPU {n_gpu}개, max_memory={max_mem}")
 model=AutoModelForImageTextToText.from_pretrained(CFG["model_id"],dtype=torch.bfloat16,
-                                                  device_map="auto",quantization_config=quant)
+                                                  device_map="auto",max_memory=max_mem,
+                                                  quantization_config=quant)
 proc=AutoProcessor.from_pretrained(CFG["model_id"],max_pixels=CFG["max_pixels"])
 # ⚠️ prepare_model_for_kbit_training의 fp32 업캐스트(+2.3GB)가 T4에서 OOM →
 #    업캐스트 생략하고 gradient checkpointing만 직접 켠다 (8B가 T4에 들어가게).
