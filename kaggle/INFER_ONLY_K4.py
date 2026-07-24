@@ -59,9 +59,9 @@ from peft import PeftModel
 from qwen_vl_utils import process_vision_info
 
 quant=BitsAndBytesConfig(load_in_4bit=True,bnb_4bit_quant_type="nf4",
-                         bnb_4bit_compute_dtype=torch.bfloat16,bnb_4bit_use_double_quant=True)
+                         bnb_4bit_compute_dtype=torch.float16,bnb_4bit_use_double_quant=True)  # T4=fp16(학습과 일치, bf16 텐서코어 없음)
 n_gpu=torch.cuda.device_count(); max_mem={i:"14GiB" for i in range(n_gpu)}
-model=AutoModelForImageTextToText.from_pretrained(MODEL_ID,dtype=torch.bfloat16,
+model=AutoModelForImageTextToText.from_pretrained(MODEL_ID,dtype=torch.float16,
         device_map="auto",max_memory=max_mem,quantization_config=quant)
 model=PeftModel.from_pretrained(model,ADAPTER)
 model.eval()
