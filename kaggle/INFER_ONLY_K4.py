@@ -26,8 +26,10 @@ from itertools import permutations
 
 # ---- 설정 --------------------------------------------------------------------
 MODEL_ID   = "Qwen/Qwen3-VL-8B-Instruct"
-MAX_PIXELS = 224*224           # 학습과 동일해야 함 (팀원이 다른 값이면 맞출 것)
+MAX_PIXELS = 384*512           # ★팀원 8B 학습값과 일치(kaggle_8b_train.py). 반드시 학습과 동일해야 함.
 USE_LIKELIHOOD = True          # True=우도K4(+4.76%p, 느림) / False=greedy(빠름, 점수확인용)
+CHUNK      = 6                 # ★OOM방지: 후보24개를 6개씩(512×384는 프리픽스가 커서 6부터). 또 터지면 자동 반감.
+SAVE_EVERY = 50                # ★중간 저장 간격(행). 죽어도 여기까지는 보존+재시작 시 스킵.
 PROMPT_V5 = ("Look at the 4 images above labeled Image 1 to Image 4. Determine the "
              "correct chronological order of these images to match the sentence below.\n"
              'Sentence: "{s}"\nProvide the answer ONLY as a Python list of integers. '
@@ -93,8 +95,52 @@ def parse_greedy(txt):
     except: pass
     return [1,2,3,4]
 
-recs=[]
-for _,row in tqdm(test.iterrows(),total=len(test)):
+OUT_PATH="/kaggle/working/submission.csv"
+
+# ---- 우도 채점 (청크로 나눠 OOM 방지) ----------------------------------------
+import copy
+from transformers.cache_utils import DynamicCache
+def _clone_cache(cache):
+    """DynamicCache를 원본 훼손 없이 복제. deepcopy 우선, 실패 시 버전별 수동복제."""
+    try:
+        return copy.deepcopy(cache)
+    except Exception:
+        new=DynamicCache()
+        if hasattr(cache,"layers") and cache.layers:            # transformers 5.x
+            for i,lyr in enumerate(cache.layers):
+                new.update(lyr.keys.clone(),lyr.values.clone(),i)
+        else:                                                    # transformers 4.x
+            for i,(k,v) in enumerate(zip(cache.key_cache,cache.value_cache)):
+                new.update(k.clone(),v.clone(),i)
+        return new
+def score_perm(enc, plen, amat, L, ch):
+    """프리픽스는 perm당 1회만 forward(속도 유지). KV캐시를 deepcopy로 복제해
+       후보를 ch개씩만 배치→ 메모리 스파이크를 24배→ch배로 제한(OOM 방지)."""
+    with torch.no_grad():
+        o1=model(**enc,use_cache=True); base=o1.past_key_values; rd=inner.rope_deltas.item()
+        flp=torch.log_softmax(o1.logits[:,-1,:].float(),-1)
+        tots=[]
+        for cs in range(0, amat.shape[0], ch):
+            amc=amat[cs:cs+ch]; b=amc.shape[0]
+            pkv=_clone_cache(base); pkv.batch_repeat_interleave(b)
+            pos=(torch.arange(plen,plen+L,device=dev)+rd).view(1,1,-1).expand(3,b,-1).contiguous()
+            o2=model(input_ids=amc,position_ids=pos,past_key_values=pkv,
+                     attention_mask=torch.ones(b,plen+L,device=dev,dtype=torch.long),use_cache=True)
+            lp0=flp[0,amc[:,0]]; rest=torch.log_softmax(o2.logits[:,:-1].float(),-1)
+            tc=lp0+rest[torch.arange(b)[:,None],torch.arange(L-1)[None,:],amc[:,1:]].sum(1)
+            tots.append(tc.detach().cpu()); del pkv,o2,rest
+        del o1,base,flp
+    return torch.cat(tots)
+
+# ---- 재시작: 이미 처리한 Id는 스킵 (죽어도 이어감) ----------------------------
+recs=[]; done=set()
+if os.path.exists(OUT_PATH):
+    prev=pd.read_csv(OUT_PATH)
+    recs=prev.to_dict("records"); done=set(prev["Id"].tolist())
+    print(f"↻ 재시작: {len(done)}행 이미 완료 → 스킵")
+
+for ridx,(_,row) in enumerate(tqdm(test.iterrows(),total=len(test))):
+    if row["Id"] in done: continue
     files=[row["Input_1"],row["Input_2"],row["Input_3"],row["Input_4"]]
     if USE_LIKELIHOOD:
         score={tuple(a):0.0 for a in CANDS}
@@ -111,19 +157,17 @@ for _,row in tqdm(test.iterrows(),total=len(test)):
             plen=enc["input_ids"].shape[1]
             atok=[proc.tokenizer(tgt_str(a,perm),add_special_tokens=False)["input_ids"]+eos for a in CANDS]
             L=len(atok[0]); amat=torch.tensor(atok,device=dev)
-            with torch.no_grad():
-                o1=model(**enc,use_cache=True); pkv=o1.past_key_values; rd=inner.rope_deltas.item()
-                flp=torch.log_softmax(o1.logits[:,-1,:].float(),-1)
-                pos=(torch.arange(plen,plen+L,device=dev)+rd).view(1,1,-1).expand(3,24,-1).contiguous()
-                pkv.batch_repeat_interleave(24)
-                o2=model(input_ids=amat,position_ids=pos,past_key_values=pkv,
-                         attention_mask=torch.ones(24,plen+L,device=dev,dtype=torch.long),use_cache=True)
-                lp0=flp[0,amat[:,0]]; rest=torch.log_softmax(o2.logits[:,:-1].float(),-1)
-                tot=lp0+rest[torch.arange(24)[:,None],torch.arange(L-1)[None,:],amat[:,1:]].sum(1)
+            ch=CHUNK
+            while True:  # OOM 시 청크를 반으로 줄여 재시도
+                try:
+                    tot=score_perm(enc,plen,amat,L,ch); break
+                except torch.cuda.OutOfMemoryError:
+                    torch.cuda.empty_cache()
+                    if ch<=2: raise
+                    ch=max(2,ch//2); print(f"  ⚠️OOM→CHUNK {ch}로 재시도")
             for a,s in zip(CANDS,tot.tolist()): score[tuple(a)]+=s
         best=max(CANDS,key=lambda a:score[tuple(a)])
-        sub=[0]*4
-        for i,n in enumerate(best): sub[n-1]=i+1
+        sub=best   # ★best는 이미 정답형식 — 추가 역변환 금지(팀원 0.44 버그 방지)
     else:  # greedy (빠른 확인용)
         content=[]
         for i,f in enumerate(files):
@@ -138,8 +182,10 @@ for _,row in tqdm(test.iterrows(),total=len(test)):
         txt=proc.batch_decode(out[:,enc.input_ids.shape[1]:],skip_special_tokens=True)[0]
         sub=parse_greedy(txt)
     recs.append({"Id":row["Id"],"Answer":str(sub)})
+    if len(recs)%SAVE_EVERY==0:            # ★중간 저장 — 죽어도 여기까지 보존
+        pd.DataFrame(recs).to_csv(OUT_PATH,index=False)
 
 out=pd.DataFrame(recs)
-out.to_csv("/kaggle/working/submission.csv",index=False)
+out.to_csv(OUT_PATH,index=False)
 mode="우도K4" if USE_LIKELIHOOD else "greedy"
 print(f"✅ submission.csv 생성 ({len(out)}행, {mode}). Output에서 다운로드 → 제출!")
