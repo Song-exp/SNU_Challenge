@@ -104,14 +104,29 @@ def union(x, y):
 
 ---
 
-## 4. 📂 eda/ 폴더 내 마스터 스크립트 가이드
+## 4. 📂 저장소 내 원본 전처리 & 분석 스크립트 매핑 가이드 (Repository Script Mapping Guide)
 
-장면 분석 및 전처리 핵심 스크립트입니다.
+본 챌린지의 최종 실행형 Kaggle 학습/추론 파이프라인이 사용한 중간 데이터 파일들(Z-Score, CLIP 거리, 증강 가중치 등)을 사전 생성하고 통계 검정을 수행하는 데 사용된 저장소 내 핵심 원본 스크립트들의 목록과 물리적 경로 매핑 가이드입니다.
 
-1. **`eda/clip_labeling_model.py`**
-   * **용도**: 캐글 GPU 환경에서 실행하여 9,535개 전체 비디오의 CLIP 피처(Max, Mean, Ratio, Max_scaled, Mean_scaled, 6개 개별 쌍의 CLIP 오차값)와 안엄격 기준 장면 전환 횟수를 일괄 추출하여 `snu_clip_features.csv`로 저장해 주는 마스터 스크립트.
-2. **`eda/scene_cut_inspector_strict.py`**
-   * **용도**: 로컬 컴퓨터에서 다운로드한 `snu_clip_features.csv` 파일을 로드하여, 무작위 100개 샘플의 구간별 CLIP 값과 판정 결과(장면 전환 vs 동일 장면)를 실제 사진과 함께 엔터(Enter) 키로 빠르게 검수하는 로컬 GUI 마스터 검수기.
+### A. 이미지 전처리 및 장면 전환 (CLIP) 스크립트
+1. **`eda/clip_labeling_model.py`** (마스터 피처 추출기)
+   * **용도**: 캐글 GPU 환경에서 실행하여 9,535개 전체 비디오의 CLIP 피처(Max, Mean, Ratio, Max_scaled, Mean_scaled, 6개 개별 쌍의 CLIP 오차값)와 안엄격 기준 장면 전환 횟수를 일괄 추출하여 `snu_clip_features.csv`로 저장해 주는 핵심 스크립트.
+2. **`eda/scene_cut_inspector_strict.py`** (로컬 GUI 마스터 검수기)
+   * **용도**: 로컬 컴퓨터에서 다운로드한 `snu_clip_features.csv` 파일을 로드하여, 무작위 100개 샘플의 구간별 CLIP 값과 판정 결과(장면 전환 vs 동일 장면)를 실제 사진과 함께 엔터(Enter) 키로 빠르게 넘기며 검수할 수 있는 로컬 GUI 마스터 검수기.
+
+### B. 오픈 보케블러리 (OWL-ViT) 및 로컬 물리 기하 분석 스크립트
+1. **`scratch/calculate_real_crop_statistics.py`** (크롭 임계값 이원화 연구)
+   * **용도**: holdout 데이터셋의 사물을 Gemma 명사 추출 및 OWL-ViT로 감지하고, 크롭 이미지의 CLIP 임베딩 유사도를 스윕 분석하여 **로컬 Drift 임계값 0.35의 통계적 타당성을 검증**한 파일.
+2. **`scratch/diagnose_camera_features.py` / `diagnose_holdout_panning.py`** (물리 법칙 정합성 진단)
+   * **용도**: BBox 면적비 $R_{\text{bbox}}$를 활용한 줌 판정 공식과 카메라 수평 회전(Panning) 및 피사체 이동 간의 **역운동학 부호 분리 공식**을 수립하고 holdout 데이터셋 상의 정합률을 실제 측정해낸 원본 진단 코드.
+
+### C. 문장 분석 및 문법 구조화 스크립트
+1. **`src/features/flag_detector.py`** (핵심 자연어 분석 엔진)
+   * **용도**: 정규식 단어 사전을 사용해 카메라 단서(`N1`), 국면 동사(`N2`), 복장 변화(`N5`) 등 독립 직교 플래그를 검출하고 시간적 모호성 점수(`ai_score`)를 연산하는 원본 모듈.
+2. **`scripts/extract_features.py`** (플래그 일괄 추출 스크립트)
+   * **용도**: 위의 `flag_detector.py` 모듈을 로드하여 `train.csv` 및 `test.csv` 전체 샘플에 대해 N1~N7 플래그 및 `ai_score`가 포함된 피처셋 데이터셋을 일괄 추출 및 생성하는 파일.
+3. **`scripts/analyze_pipeline.py`** (구문-비디오 매치 검정기)
+   * **용도**: SpaCy 영어 분석 트리 기반으로 문장을 Type-1~3으로 상호배타 분류하고, 이 문법 구조가 실제 비디오 구조와 얼마나 매칭되는지 카이제곱 독립성 검정 및 Cramer's V 연산으로 설계의 건전성을 입증한 분석 코드.
 
 ---
 
