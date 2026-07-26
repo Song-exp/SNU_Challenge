@@ -58,6 +58,8 @@ Qwen-VL과 같은 초거대 Vision-Language Model(VLM)은 입력 프레임들과
   * 4개의 프레임이 아예 다른 장소와 구도로 이루어진 장면 전환형 비디오입니다.
 * **총 비디오 세트 수**: **9,535개 (100.00%)**
 
+![이미지 모호성 및 장면 전환 시각화 다이어그램](file:///C:/Users/user/Desktop/서울대/eda/snu_challenge_data_examples.jpg)
+
 ### F. 정규분포(Z-Score) 스케일링 기법
 원본 CLIP 거리 값들은 소수점 형태라 VLM(Qwen2-VL) 프롬프트에 소프트 힌트(Soft Hint)로 주입하기에 척도가 일정하지 않습니다. 이를 극복하기 위해 Scikit-learn의 `QuantileTransformer`를 사용하여 표준 정규분포로 스케일링하였습니다.
 * **Max_scaled (Z-Score)**: 평균 **`0.00`**, 표준편차 **`1.00`**으로 수렴.
