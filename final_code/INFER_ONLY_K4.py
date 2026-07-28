@@ -21,18 +21,22 @@ from transformers.cache_utils import DynamicCache
 from peft import PeftModel
 from qwen_vl_utils import process_vision_info
 
-# Initialize library installations
-def pip(*p):
-    subprocess.run([sys.executable, "-m", "pip", "install", "-q", "-U", *p])
-
-pip("transformers==5.13.0", "peft", "bitsandbytes", "accelerate", "qwen-vl-utils")
+import argparse
 
 os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
+
+# ---- Argument Parsing --------------------------------------------------------
+parser = argparse.ArgumentParser(description="SNU AI Challenge — Qwen3-VL-8B Inference Pipeline")
+parser.add_argument("--data", default="./data", help="Path to data directory containing test.csv and test/")
+parser.add_argument("--adapter", default="./weights/adapter_8b_final", help="Path to adapter directory containing adapter_model.safetensors")
+parser.add_argument("--out", default="./outputs/submission.csv", help="Output path for submission CSV")
+parser.add_argument("--no-likelihood", action="store_true", help="Disable likelihood scoring and use greedy generation")
+args, _ = parser.parse_known_args()
 
 # ---- Configuration -----------------------------------------------------------
 MODEL_ID = "Qwen/Qwen3-VL-8B-Instruct"
 MAX_PIXELS = 384 * 512
-USE_LIKELIHOOD = True
+USE_LIKELIHOOD = not args.no_likelihood
 CHUNK = 6
 SAVE_EVERY = 50
 PROMPT_V5 = (
@@ -41,26 +45,37 @@ PROMPT_V5 = (
     'Sentence: "{s}"\nProvide the answer ONLY as a Python list of integers. '
     "Example: [1, 2, 3, 4]"
 )
-OUT_PATH = "/kaggle/working/submission.csv"
+OUT_PATH = args.out
+os.makedirs(os.path.dirname(os.path.abspath(OUT_PATH)), exist_ok=True)
 
 # ---- Data & Adapter Directory Detection --------------------------------------
-DATA_DIR = None
-for r, d, f in os.walk("/kaggle/input"):
-    if "test.csv" in f and "test" in d:
-        DATA_DIR = r
-        break
-assert DATA_DIR, "Error: Test dataset directory not found."
+DATA_DIR = args.data
+if not (os.path.exists(os.path.join(DATA_DIR, "test.csv"))):
+    # Auto-detect data directory
+    for search_root in ["./data", "./snuaichallenge_data", "./", "/kaggle/input"]:
+        if os.path.exists(search_root):
+            for r, d, f in os.walk(search_root):
+                if "test.csv" in f and "test" in d:
+                    DATA_DIR = r
+                    break
+            if os.path.exists(os.path.join(DATA_DIR, "test.csv")):
+                break
+
+assert os.path.exists(os.path.join(DATA_DIR, "test.csv")), f"Error: Test dataset directory not found in {args.data} or search paths."
 print(f"Data Directory: {DATA_DIR}")
 
-ADAPTER = None
-for p in glob.glob("/kaggle/input/**/adapter_model.safetensors", recursive=True):
-    ADAPTER = os.path.dirname(p)
-    break
-if not ADAPTER:
-    for p in glob.glob("/kaggle/working/**/adapter_model.safetensors", recursive=True):
-        ADAPTER = os.path.dirname(p)
-        break
-assert ADAPTER, "Error: Adapter checkpoint not found."
+ADAPTER = args.adapter
+if not os.path.exists(os.path.join(ADAPTER, "adapter_model.safetensors")):
+    # Auto-detect adapter directory
+    for search_root in ["./weights", "./outputs", "./models", "./", "/kaggle/input", "/kaggle/working"]:
+        if os.path.exists(search_root):
+            for p in glob.glob(f"{search_root}/**/adapter_model.safetensors", recursive=True):
+                ADAPTER = os.path.dirname(p)
+                break
+            if os.path.exists(os.path.join(ADAPTER, "adapter_model.safetensors")):
+                break
+
+assert os.path.exists(os.path.join(ADAPTER, "adapter_model.safetensors")), f"Error: Adapter checkpoint not found in {args.adapter} or search paths."
 print(f"Adapter Directory: {ADAPTER}")
 
 # ---- Model Initialization ----------------------------------------------------
@@ -71,7 +86,7 @@ quant = BitsAndBytesConfig(
     bnb_4bit_use_double_quant=True,
 )
 n_gpu = torch.cuda.device_count()
-max_mem = {i: "14GiB" for i in range(n_gpu)}
+max_mem = {i: "22GiB" for i in range(max(1, n_gpu))}
 
 model = AutoModelForImageTextToText.from_pretrained(
     MODEL_ID,

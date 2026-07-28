@@ -1,0 +1,25 @@
+timestamp,model_id,load_4bit,max_pixels,eval_n,accuracy,parse_fail,sec_per_sample,peak_vram_gb,prompt,acc_shuffled,acc_identity
+2026-07-13 00:29,./models/Qwen2-VL-2B-Instruct,False,307200,300,0.1367,1,0.99,4.76,,,
+2026-07-13 02:04,./models/Qwen2.5-VL-3B-Instruct,True,307200,300,0.07,0,1.24,3.02,,,
+2026-07-13 04:09,./models/Qwen2.5-VL-7B-Instruct,True,307200,300,0.11,0,1.74,6.99,,,
+2026-07-13 04:13,./models/Qwen3-VL-2B-Instruct,False,307200,300,0.14,3,0.69,4.65,,,
+2026-07-13 04:18,./models/Qwen3-VL-4B-Instruct,True,307200,300,0.1633,5,1.14,3.75,,,
+2026-07-14 00:54,./models/Qwen3-VL-2B-Instruct+exp01_aug2_lr1e4,False,307200,300,0.49,0,1.58,4.68,v1_list,0.4563,0.6667
+2026-07-14 00:57,./models/Qwen3-VL-2B-Instruct,False,307200,300,0.1233,15,1.45,4.67,v2_temporal,0.0159,0.6875
+2026-07-14 01:37,./models/Qwen3-VL-2B-Instruct,False,307200,300,0.16,297,7.96,4.67,v3_cot,0.0,1.0
+2026-07-14 17:16,./models/Qwen3-VL-2B-Instruct+exp06_aug1_full,False,307200,300,0.48,0,0.87,4.68,v1_list,0.4206,0.7917
+2026-07-15 10:52,./models/Qwen3-VL-2B-Instruct+exp07_aug2_full,False,307200,300,0.5233,0,0.88,4.68,v1_list,0.4841,0.7292
+2026-07-16 02:48,./models/Qwen3-VL-2B-Instruct+exp12_v4cot_aug1,False,307200,300,0.43,0,11.25,4.8,v4_story_cot,0.377,0.7083
+2026-07-16 03:02,./models/Qwen3-VL-2B-Instruct+exp12_v4cot_aug1,False,307200,300,0.43,0,11.54,4.8,v4_story_cot,0.377,0.7083
+2026-07-16 05:03,./models/Qwen3-VL-2B-Instruct+mini_v1_aug2,False,307200,300,0.2433,0,0.85,4.68,v1_list,0.1548,0.7083
+2026-07-16 07:02,./models/Qwen3-VL-2B-Instruct+mini_reorder_aug2,False,307200,300,0.2767,0,0.85,4.68,v5_reorder,0.2183,0.5833
+2026-07-16 08:34,./models/Qwen3-VL-2B-Instruct+mini_v4story_aug2,False,307200,300,0.24,0,0.87,4.71,v4_story,0.1587,0.6667
+2026-07-17 00:22,./models/Qwen3-VL-2B-Instruct+exp14_reorder_aug2,False,307200,300,0.52,0,0.86,4.68,v5_reorder,0.4802,0.7292
+2026-07-18 21:35,./models/Qwen3-VL-2B-Instruct+mini_hint_aug2,False,307200,300,0.1933,0,0.99,4.7,v6_hint,0.0992,0.6875
+2026-07-18 23:15,./models/Qwen3-VL-2B-Instruct+mini_gemma_cot_aug2,False,307200,300,0.1567,0,5.79,4.76,v7_cot,0.0317,0.8125
+2026-07-20 02:10,./models/Qwen3-VL-2B-Instruct+mini_struct_cot_aug1,False,307200,300,0.1733,1,5.95,4.8,v8_struct_cot,0.0317,0.9167
+2026-07-20 03:16,./models/Qwen3-VL-2B-Instruct+mini_v1_aug1,False,307200,300,0.2267,0,0.87,4.68,v1_list,0.123,0.7708
+2026-07-20 12:45,./models/Qwen3-VL-2B-Instruct+exp16_sparsecam_aug,False,307200,300,0.5133,0,0.86,4.68,v1_list,0.4802,0.6875
+2026-07-20 14:31,./models/Qwen3-VL-4B-Instruct+mini_4b_aug1,True,307200,300,0.3167,0,1.48,3.79,v1_list,0.2579,0.625
+2026-07-21 05:58,./models/Qwen3-VL-4B-Instruct+exp17_4b_reorder_sparseaug,True,307200,300,0.5433,0,1.4,3.79,v5_reorder,0.5198,0.6667
+2026-07-22 17:18,./models/Qwen3-VL-4B-Instruct+exp20_4b_hardshuffle,True,307200,300,0.5467,0,1.41,3.79,v5_reorder,0.5238,0.6667

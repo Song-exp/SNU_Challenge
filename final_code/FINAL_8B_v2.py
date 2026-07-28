@@ -23,15 +23,17 @@ from transformers.optimization import get_cosine_schedule_with_warmup
 from peft import LoraConfig, PeftModel, get_peft_model, prepare_model_for_kbit_training
 from qwen_vl_utils import process_vision_info
 
-# Initialize library installations
-def pip(*pkgs):
-    subprocess.run([sys.executable, "-m", "pip", "install", "-q", "-U", *pkgs])
+import argparse
 
-pip("transformers==5.13.0", "peft", "bitsandbytes", "accelerate", "qwen-vl-utils")
-
-# Set environment variables for memory management
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
+
+# ---- Argument Parsing --------------------------------------------------------
+parser = argparse.ArgumentParser(description="SNU AI Challenge — Qwen3-VL-8B Training Pipeline")
+parser.add_argument("--data", default="./data", help="Path to data directory")
+parser.add_argument("--aux", default="./aux", help="Path to aux directory for CSVs")
+parser.add_argument("--out", default="./weights/adapter_8b_final", help="Path to save final adapter")
+parser.add_argument("--ckpt", default="./outputs/ckpt", help="Path to save checkpoints")
+args, _ = parser.parse_known_args()
 
 # ---- Configuration -----------------------------------------------------------
 CFG = dict(
@@ -52,29 +54,40 @@ CFG = dict(
     max_pixels=512 * 384,
     warmup_ratio=0.03,
     seed=42,
-    out="/kaggle/working/adapter",
-    ckpt="/kaggle/working/ckpt",
+    out=args.out,
+    ckpt=args.ckpt,
     save_every=100,
     max_seconds=11.3 * 3600,
 )
 
 os.makedirs(CFG["ckpt"], exist_ok=True)
+os.makedirs(CFG["out"], exist_ok=True)
 random.seed(CFG["seed"])
 torch.manual_seed(CFG["seed"])
 rng = random.Random(CFG["seed"])
 
 # ---- Data Directory Detection ------------------------------------------------
-DATA_DIR = None
-for root, dirs, files in os.walk("/kaggle/input"):
-    if "train.csv" in files and "test.csv" in files and "train" in dirs:
-        DATA_DIR = root
-        break
-assert DATA_DIR, "Error: Challenge dataset not found."
+DATA_DIR = args.data
+if not (os.path.exists(os.path.join(DATA_DIR, "train.csv")) and os.path.exists(os.path.join(DATA_DIR, "train"))):
+    for search_root in ["./data", "./snuaichallenge_data", "./", "/kaggle/input"]:
+        if os.path.exists(search_root):
+            for root, dirs, files in os.walk(search_root):
+                if "train.csv" in files and "test.csv" in files and "train" in dirs:
+                    DATA_DIR = root
+                    break
+            if os.path.exists(os.path.join(DATA_DIR, "train.csv")):
+                break
+
+assert os.path.exists(os.path.join(DATA_DIR, "train.csv")), f"Error: Challenge dataset not found in {args.data} or search paths."
 print(f"Data Directory: {DATA_DIR}")
 
 def find_csv(name):
-    hits = glob.glob(f"/kaggle/input/**/{name}", recursive=True)
-    return hits[0] if hits else None
+    for search_root in [args.aux, "./aux", "./kaggle/aux_upload", "./data", "./", "/kaggle/input"]:
+        if os.path.exists(search_root):
+            hits = glob.glob(f"{search_root}/**/{name}", recursive=True)
+            if hits:
+                return hits[0]
+    return None
 
 AUG_WEIGHTS = find_csv("aug_weights_exp16.csv")
 CLIP_FEATS = find_csv("snu_clip_features.csv")

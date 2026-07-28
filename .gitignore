@@ -65,3 +65,12 @@ run_gui_inspector.bat
 scripts/gui_syntax_inspector.py
 
 train___Ϸ_.csv
+
+# Whitelist exceptions for submission evidence, aux, and final adapter weights
+!outputs_evidence/
+!outputs_evidence/**
+!aux/
+!aux/**
+!weights/adapter_8b_final/
+!weights/adapter_8b_final/**
+
