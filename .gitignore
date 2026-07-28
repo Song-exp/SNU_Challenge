@@ -36,6 +36,9 @@ lightning_logs/
 Thumbs.db
 ehthumbs.db
 .DS_Store
+desktop.ini
+*_log.txt
+*.log
 
 # IDE / Editors
 .vscode/
@@ -61,4 +64,4 @@ run_inspector.bat
 run_gui_inspector.bat
 scripts/gui_syntax_inspector.py
 
-train_검토_최종_완료_수정본.csv
+train___狗_.csv

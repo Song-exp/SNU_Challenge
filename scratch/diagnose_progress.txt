@@ -1,0 +1,95 @@
+Starting holdout diagnosis (Optimized Keyword-First version)...
+Loaded 300 samples from holdout_300.csv
+Using device: cpu
+Processed 30/300 samples...
+Processed 40/300 samples...
+Processed 80/300 samples...
+Processed 100/300 samples...
+Processed 110/300 samples...
+Processed 180/300 samples...
+Processed 210/300 samples...
+
+==================================================
+FINAL STATISTICS
+==================================================
+Total samples with spatial keywords: 94
+Panning samples evaluated: 24
+  Panning consistency: 14/24 (58.3%)
+Zoom samples evaluated: 63
+  Zoom consistency: 38/63 (60.3%)
+
+==================================================
+PANNING SAMPLES DETAILS
+==================================================
+Id: 25oh28 | Status: ✅ Consistent | Reason: Object moved left (X: 0.32 -> 0.29)
+Sentence: A white strip is placed on wet paint and smoothed with a tool moving left, then a heat gun exits as hands with a tool scrape and adjust the material's edge.
+--------------------------------------------------
+Id: 8lHWHe | Status: ❌ Inconsistent | Reason: Object did not move left (X: 0.46 -> 0.65)
+Sentence: The rider moves left to center with a rocky backdrop as the camera zooms in, then the skier glides right and crouches, casting a shadow on the snow while the camera zooms out slightly.
+--------------------------------------------------
+Id: Ppsko6 | Status: ✅ Consistent | Reason: Object moved left (X: 0.44 -> 0.35)
+Sentence: The dancer rotates counter-clockwise to face forward, lowering her arms, as the performer twirls and raises a stick before moving off-screen to the left while the camera pans right, revealing colorful banners.
+--------------------------------------------------
+Id: CqBYyi | Status: ❌ Inconsistent | Reason: Object did not move left (X: 0.31 -> 0.46)
+Sentence: A skier falls into the snow, then flips upside down in mid-air; subsequently, a single skier descends the slope and exits as two skiers enter from the right, moving left across the frame.
+--------------------------------------------------
+Id: 2J2eC7 | Status: ❌ Inconsistent | Reason: Object did not move right (X: 0.44 -> 0.12)
+Sentence: The camera pans left from individuals sledding down the snowy hill to a group waiting at the top, then tilts slightly downward as more people slide down, capturing the lively winter scene.
+--------------------------------------------------
+Id: dcn6yK | Status: ✅ Consistent | Reason: Object moved left (X: 0.86 -> 0.63)
+Sentence: Indoors, dartboards are displayed, then the scene shifts to a blue raft moving left through rapids with paddlers; the raft, now green, moves away from the camera downstream, revealing more of the surrounding river landscape.
+--------------------------------------------------
+Id: diZi5g | Status: ✅ Consistent | Reason: Object moved right (X: 0.41 -> 0.58)
+Sentence: The camera pans left to reveal two people kneeling beside a fishing hole on the ice, then shifts from a frontal to a rear view as a skier moves forward and jumps onto a rail.
+--------------------------------------------------
+Id: Rh81PW | Status: ✅ Consistent | Reason: Object moved left (X: 0.64 -> 0.42)
+Sentence: The camera pans right from an upside-down person revealing another preparing to jump, then zooms in on a snowboarder, capturing a close-up of the board before transitioning into darkness.
+--------------------------------------------------
+Id: HYb6gI | Status: ❌ Inconsistent | Reason: Object did not move left (X: 0.48 -> 0.53)
+Sentence: The windsurfer glides and rotates to face the camera as it zooms in, then a sailboat moves left with another boat entering from the right, while the camera slightly zooms out.
+--------------------------------------------------
+Id: znxzO0 | Status: ❌ Inconsistent | Reason: Object did not move right (X: 0.56 -> 0.50)
+Sentence: The hula hoop spins from vertical behind the performer to horizontal around her waist as she walks right along the shoreline, then a woman moves from standing beside a pull-up bar to hanging with her body raised upward.
+--------------------------------------------------
+Id: bKsROE | Status: ✅ Consistent | Reason: Object moved right (X: 0.63 -> 0.76)
+Sentence: The fighter in gray and red retreats as the opponent in blue advances, while in another scene, the player in yellow moves right with a racquet as another player enters from the left, both heading to the court's center.
+--------------------------------------------------
+Id: BR9IrD | Status: ✅ Consistent | Reason: Object moved right (X: 0.52 -> 0.60)
+Sentence: A dog runs rightward across the grass with a frisbee in its mouth, then exits as the camera zooms out to reveal two individuals walking and conversing on a path toward a building.
+--------------------------------------------------
+Id: 2EaqeB | Status: ✅ Consistent | Reason: Object moved left (X: 0.43 -> 0.33)
+Sentence: The camera pans right from a static hotel sign to a palm-lined walkway, then a skater moves closer to the camera as the background houses shift left with the camera continuing to pan right.
+--------------------------------------------------
+Id: sOHrH1 | Status: ✅ Consistent | Reason: Object moved right (X: 0.24 -> 0.42)
+Sentence: A person sprays a roof, moving right as the camera tilts up, then approaches a stationary ladder, climbs it, and raises a trimmer to work on the hedge's top.
+--------------------------------------------------
+Id: CPaUl4 | Status: ❌ Inconsistent | Reason: Object did not move right (X: 0.60 -> 0.46)
+Sentence: The person kneels to measure, then moves right to cut material on a different surface, before adjusting the wallpaper upward on the wall with both hands.
+--------------------------------------------------
+Id: uFmrbb | Status: ✅ Consistent | Reason: Object moved right (X: 0.41 -> 0.70)
+Sentence: The flaming hula hoop exits as the performer moves right and a fire staff enters from the left; stage lights fade, and the camera zooms in to reveal a seated performer with a microphone.
+--------------------------------------------------
+Id: A2lgbs | Status: ❌ Inconsistent | Reason: Object did not move left (X: 0.36 -> 0.37)
+Sentence: The camera zooms in on a mustard bottle on the counter, then shifts to show a whisk moving left as a hand with egg whites enters from the right.
+--------------------------------------------------
+Id: hu0qz4 | Status: ✅ Consistent | Reason: Object moved right (X: 0.37 -> 0.42)
+Sentence: The person clears snow from the windshield, moves to the side door, then scrapes ice off another windshield, turns left, and walks away as the camera slightly pans left.
+--------------------------------------------------
+Id: 0HYflm | Status: ❌ Inconsistent | Reason: Object did not move left (X: 0.30 -> 0.52)
+Sentence: The mascot moves leftward as cheerleaders form a pyramid, then the gymnast swings on the bars, flipping over into an inverted position.
+--------------------------------------------------
+Id: uOZs3Q | Status: ❌ Inconsistent | Reason: Object did not move left (X: 0.17 -> 0.58)
+Sentence: The camera shifts right to reveal a hunter aiming a bow at a distant deer, then transitions to a skateboarder moving into the foreground and shifting right as the camera angle widens.
+--------------------------------------------------
+Id: Q3qZpB | Status: ❌ Inconsistent | Reason: Object did not move right (X: 0.53 -> 0.39)
+Sentence: The rolled wrap moves right as a knife slices it into sections, then a knife moves downward along the sharpening stone while hands adjust their grip.
+--------------------------------------------------
+Id: fKbHF9 | Status: ✅ Consistent | Reason: Object moved left (X: 0.56 -> 0.38)
+Sentence: The camera pans right, revealing the band with the drummer on the right, then tilts down and zooms in on a hand adjusting the bike's rear wheel.
+--------------------------------------------------
+Id: Bcu5Dd | Status: ✅ Consistent | Reason: Object moved right (X: 0.46 -> 0.52)
+Sentence: The brush moves out as the feeding container approaches the horse's mouth; simultaneously, the sponge shifts from the faucet to the sink, while the hand with a yellow glove moves right to place the sponge down.
+--------------------------------------------------
+Id: YFp3rY | Status: ✅ Consistent | Reason: Object moved right (X: 0.23 -> 0.50)
+Sentence: The fence extends leftward as the worker in red moves right, with the camera panning left; then a person applies wood finish to a fence, followed by a close-up of wood finishing supplies on a deck.
+--------------------------------------------------
