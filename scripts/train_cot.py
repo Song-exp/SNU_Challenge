@@ -115,6 +115,42 @@ def build_cot_target(events, target):
     return "\n".join(lines)
 
 
+def build_struct_target(struct, target):
+    """gemma 구조 라벨(subjects/events/markers) + 시간순 이미지 번호 -> v8 구조 CoT 응답.
+
+    v7 대비: events 문장 나열 대신 한 줄 요약 + 주체·표지 — 분석 구간이 짧아져
+    정답 토큰의 손실 비중이 올라간다. 무표지 문장은 'none'을 명시적으로 발화."""
+    events = " ".join(f"{i + 1}) {e}" for i, e in enumerate(struct["events"]))
+    subjects = ", ".join(struct["subjects"]) if struct["subjects"] else "none"
+    markers = ", ".join(struct["markers"]) if struct["markers"] else "none"
+    lines = [
+        "[Story Analysis]",
+        f"- Subjects: {subjects}",
+        f"- Events (narrated order): {events}",
+        f"- Temporal markers: {markers}",
+        "[Chronological Mapping]",
+    ]
+    lines += [f"- {ORDINALS[i]}: Image {n}" for i, n in enumerate(target)]
+    lines.append("[Final Answer]")
+    lines.append(f"<ANSWER>{target}</ANSWER>")
+    return "\n".join(lines)
+
+
+def load_gemma_structs(df):
+    """v8_struct_cot 타깃 소스 — gemma 라벨의 subjects/events/markers 전체 구조."""
+    from structure_features import load_gemma_labels
+    g = load_gemma_labels()
+    structs = {r.Id: {"subjects": [str(s) for s in r.subjects],
+                      "events": [str(e) for e in r.events][:5],
+                      "markers": [str(m) for m in r.markers]}
+               for r in g.itertuples() if r.events}
+    missing = [i for i in df["Id"] if i not in structs]
+    if missing:
+        raise SystemExit(f"gemma 라벨 누락 {len(missing)}개 (예: {missing[:5]}) — "
+                         f"라벨링 범위를 확인할 것 (v8은 gemma 라벨 필수)")
+    return structs
+
+
 def load_gemma_events(df):
     """gemma 라벨의 events를 타깃 소스로 사용 (exp12의 spacy 분해 품질 문제 대체).
 
@@ -131,12 +167,16 @@ def load_gemma_events(df):
 
 
 def build_training_items_cot(df, image_dir, aug_mult, rng, splitter, events_from="spacy",
-                             clip_pairs=None, owlvit_features=None):
+                             clip_pairs=None, owlvit_features=None, target_style="events"):
     """train.py의 build_training_items와 동일한 증강 규약 + CoT target.
     이벤트 분해는 샘플당 1회(변형 불변), target 리스트만 변형별로 재계산.
-    clip_pairs가 있으면 변형별 재매핑 힌트를 item["hint"]에 저장 (v7_cot_hint용)."""
+    clip_pairs가 있으면 변형별 재매핑 힌트를 item["hint"]에 저장 (v7_cot_hint용).
+    target_style="struct"(v8)는 gemma 구조 요약 타깃 — events_from 무시, gemma 라벨 필수."""
     from structure_features import build_comprehensive_hints
-    if events_from == "gemma":
+    if target_style == "struct":
+        print("타깃 스타일: 구조 요약 (gemma subjects/events/markers)", flush=True)
+        events_by_id = load_gemma_structs(df)
+    elif events_from == "gemma":
         print("이벤트 소스: gemma 라벨", flush=True)
         events_by_id = load_gemma_events(df)
     else:
@@ -168,11 +208,13 @@ def build_training_items_cot(df, image_dir, aug_mult, rng, splitter, events_from
             hint = ""
             if clip_pairs is not None or owlvit_features is not None:
                 hint = build_comprehensive_hints(clip_pairs, owlvit_features, row["Id"], chrono, perm)
+            target_text = (build_struct_target(events, target) if target_style == "struct"
+                           else build_cot_target(events, target))
             items.append({
                 "id": row["Id"],
                 "sentence": row["Sentence"],
                 "paths": [os.path.join(image_dir, row["Id"], f) for f in shown_files],
-                "target_text": build_cot_target(events, target),
+                "target_text": target_text,
                 "hint": hint,
             })
     return items
@@ -208,13 +250,19 @@ def main():
                         help="N개 샘플의 CoT target만 출력하고 종료 (GPU 불필요)")
     parser.add_argument("--events-from", default="spacy", choices=["spacy", "gemma"],
                         help="타깃 이벤트 소스 — gemma = outputs/gemma_labels (v7 트랙)")
+    parser.add_argument("--analysis-loss-weight", type=float, default=1.0,
+                        help="[Story Analysis] 구간 토큰의 손실 가중 (1.0=기존 동일). "
+                             "v8은 0.3 권장 — 분석 토큰의 그래디언트 희석(v7 identity 붕괴 원인) 방지")
     args = parser.parse_args()
 
     import pandas as pd
 
+    # v8 = 구조 요약 타깃 (gemma 라벨 필수, events_from 무시)
+    target_style = "struct" if args.prompt == "v8_struct_cot" else "events"
+
     random.seed(args.seed)
     rng = random.Random(args.seed)
-    splitter = EventSplitter() if args.events_from == "spacy" else None
+    splitter = EventSplitter() if (args.events_from == "spacy" and target_style == "events") else None
 
     clip_pairs = None
     owlvit_features = None
@@ -232,7 +280,8 @@ def main():
     if args.preview:  # target 생성 미리보기 — 학습 없이 형식 눈검사 (미니 풀과 같은 시드로 뽑음)
         sample = train_df.sample(n=1000, random_state=args.seed).head(args.preview)
         items = build_training_items_cot(sample, os.path.join(args.data_dir, "train"),
-                                         2, rng, splitter, args.events_from, clip_pairs, owlvit_features)
+                                         2, rng, splitter, args.events_from, clip_pairs, owlvit_features,
+                                         target_style)
         for it in items:
             print(f"\n===== {it['id']} =====\n문장: {it['sentence']}")
             if it["hint"]:
@@ -244,7 +293,7 @@ def main():
         train_df = train_df.sample(n=args.max_samples, random_state=args.seed).reset_index(drop=True)
     image_dir = os.path.join(args.data_dir, "train")
     items = build_training_items_cot(train_df, image_dir, args.aug_mult, rng, splitter,
-                                     args.events_from, clip_pairs, owlvit_features)
+                                     args.events_from, clip_pairs, owlvit_features, target_style)
     rng.shuffle(items)
     tgt_chars = sum(len(i["target_text"]) for i in items) // max(len(items), 1)
     print(f"기반 {len(train_df)}개 x 증강 {args.aug_mult} = 학습 항목 {len(items)}개 "
@@ -318,6 +367,25 @@ def main():
                    "total_opt_steps": total_opt_steps,
                    "started": datetime.now().isoformat()}, f, ensure_ascii=False, indent=2)
 
+    MAPPING_MARKER = "[Chronological Mapping]"
+
+    def analysis_token_count(label_ids):
+        """라벨 토큰열에서 [Story Analysis] 구간 길이(매핑 마커 직전까지의 토큰 수).
+
+        토큰별 개별 디코드를 누적해 문자 경계를 찾는다 — BPE 병합이 문맥에 따라
+        달라져도 안전 (타깃은 ASCII라 개별 디코드 누적이 원문과 일치). 못 찾으면 0."""
+        s, ends = "", []
+        for tid in label_ids:
+            s += processor.tokenizer.decode([tid])
+            ends.append(len(s))
+        pos = s.find(MAPPING_MARKER)
+        if pos < 0:
+            return 0
+        for i, e in enumerate(ends):
+            if e > pos:
+                return i
+        return 0
+
     def encode(item):
         messages = build_messages(item["sentence"], item["paths"], args.prompt, item.get("hint", ""))
         prompt_text = processor.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
@@ -330,8 +398,14 @@ def main():
         prompt = processor(text=[prompt_text], images=image_inputs, videos=video_inputs,
                            padding=True, return_tensors="pt")
         labels = full.input_ids.clone()
-        labels[:, : prompt.input_ids.shape[1]] = -100
+        plen = prompt.input_ids.shape[1]
+        labels[:, :plen] = -100
         full["labels"] = labels
+        if args.analysis_loss_weight != 1.0:
+            k = analysis_token_count(full.input_ids[0, plen:].tolist())
+            w = torch.ones_like(full.input_ids, dtype=torch.float32)
+            w[:, plen:plen + k] = args.analysis_loss_weight
+            full["loss_weights"] = w
         return full
 
     def save_adapter(tag):
@@ -350,7 +424,19 @@ def main():
             pbar = tqdm(items, desc=f"epoch {epoch + 1}/{args.epochs}")
             for item in pbar:
                 inputs = encode(item).to(model.device)
-                loss = model(**inputs).loss / args.grad_accum
+                weights = inputs.pop("loss_weights", None)
+                if weights is None:
+                    loss = model(**inputs).loss / args.grad_accum
+                else:
+                    # 구간별 손실 가중: 분석 토큰 축소, 매핑·정답 토큰 보전 (가중 평균)
+                    labels_t = inputs.pop("labels")
+                    logits = model(**inputs).logits
+                    tgt = labels_t[:, 1:]
+                    mask = tgt != -100
+                    ce = torch.nn.functional.cross_entropy(
+                        logits[:, :-1][mask].float(), tgt[mask], reduction="none")
+                    wm = weights[:, 1:][mask]
+                    loss = (ce * wm).sum() / wm.sum() / args.grad_accum
                 loss.backward()
                 loss_acc += loss.item()
                 micro_step += 1

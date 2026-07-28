@@ -70,16 +70,25 @@ def load_baseline(df, path=BASELINE_PREDS):
 # ---------------------------------------------------------------- 모델/추론
 def load_model(model_path="./models/Qwen3-VL-2B-Instruct",
                adapter="./outputs/runs/exp07_aug2_full/adapter",
-               max_pixels=640 * 480):
-    """eval_zero_shot.py와 동일 설정으로 모델+어댑터 1회 로드 (fp16, ~4.7GB)."""
+               max_pixels=640 * 480, load_4bit=False):
+    """eval_zero_shot.py와 동일 설정으로 모델+어댑터 1회 로드 (fp16 ~4.7GB / 4bit ~4GB).
+
+    load_4bit: 4B 모델은 fp16이 8GB에 안 들어가므로 학습과 동일한 nf4 4bit로 로드."""
     import torch
     from transformers import AutoModelForImageTextToText, AutoProcessor
     from peft import PeftModel
 
     assert torch.cuda.is_available(), "GPU 필요"
     wait_for_free_vram(5.5)  # 학습 프로세스가 GPU 점유 중이면 대기
+    quant_cfg = None
+    if load_4bit:
+        from transformers import BitsAndBytesConfig
+        quant_cfg = BitsAndBytesConfig(
+            load_in_4bit=True, bnb_4bit_quant_type="nf4",
+            bnb_4bit_compute_dtype=torch.bfloat16, bnb_4bit_use_double_quant=True)
     model = AutoModelForImageTextToText.from_pretrained(
-        model_path, dtype=torch.float16, device_map="cuda", local_files_only=True)
+        model_path, dtype=torch.bfloat16 if load_4bit else torch.float16,
+        device_map="cuda", quantization_config=quant_cfg, local_files_only=True)
     model = PeftModel.from_pretrained(model, adapter)
     model.eval()
     processor = AutoProcessor.from_pretrained(

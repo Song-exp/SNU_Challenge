@@ -143,6 +143,56 @@ PROMPTS = {
         "[Chronological Mapping]\n- 1st: Image 3\n- 2nd: Image 1\n- 3rd: Image 4\n- 4th: Image 2\n"
         "[Final Answer]\n<ANSWER>[3, 1, 4, 2]</ANSWER>"
     ),
+    # v8: 구조 CoT (7/20 설계 — 사용자 개선안 검토 반영). 타깃 = gemma 구조 요약
+    # (subjects/events/markers) + 정답 역산 매핑. train_cot.py 전용, 분석 구간 손실 가중
+    # --analysis-loss-weight 0.3 권장 (v7 identity 붕괴 진단 = 분석 토큰의 그래디언트 희석).
+    # 힌트 없음 — 추론 입력 = 문장+이미지 4장 확정 제약(7/20). ⚠️ 평가 --max-new-tokens 512 필수
+    "v8_struct_cot": (
+        "[Role]: You are an expert video-language understanding AI.\n"
+        "[Task]: Reconstruct the correct chronological order of 4 shuffled video frames "
+        "to match the given storyline.\n\n"
+        'Sentence: "{sentence}"\n\n'
+        "Look at the 4 images above labeled Image 1 to Image 4.\n"
+        "Execute your task by following these exact steps:\n\n"
+        "1. [Story Analysis]: Extract the sentence structure concisely. List the subjects, "
+        "the distinct events in narrated order, and any temporal markers. If there are no "
+        "temporal markers, explicitly write 'none'.\n"
+        "2. [Chronological Mapping]: Guided by the events identified in Step 1, examine "
+        "the 4 images and assign each position in time (1st to 4th) to an image. Apply "
+        "this logic internally and output ONLY the mapping result without explaining "
+        "the reasons.\n"
+        "3. [Final Answer]: Convert the chronological sequence established in Step 2 into "
+        "a single Python list of image numbers.\n\n"
+        "You MUST enclose your final python list of integers within <ANSWER> tags.\n\n"
+        "Output format:\n"
+        "[Story Analysis]\n"
+        "- Subjects: ...\n"
+        "- Events (narrated order): 1) ... 2) ...\n"
+        "- Temporal markers: ...\n"
+        "[Chronological Mapping]\n- 1st: Image 3\n- 2nd: Image 1\n- 3rd: Image 4\n- 4th: Image 2\n"
+        "[Final Answer]\n<ANSWER>[3, 1, 4, 2]</ANSWER>"
+    ),
+    # v9: OWL-ViT 좌표 힌트 (7/21). exp17 승자 프롬프트 v5_reorder(문장 후치) + {hint} 한 줄.
+    # 힌트는 build_owlvit_hint_text가 채움 (관측 좌표만, 순서 주장 없음, 검출 실패는 ignore 마스킹).
+    # v5_reorder와 {hint} 외 완전 동일 -> 미니 효과 = 순수 힌트 효과.
+    # ⚠️ 힌트 주입 계열 2연패(v6 9.9%, v7cot 3.2%) + 검출률 낮음 -> 미니 게이트 통과 전 풀 금지.
+    "v9_owlvit_hint": (
+        "Look at the 4 images above labeled Image 1 to Image 4. Determine the correct "
+        "chronological order of these images to match the sentence below.\n"
+        "{hint}"
+        'Sentence: "{sentence}"\n'
+        "Provide the answer ONLY as a Python list of integers. Example: [1, 2, 3, 4]"
+    ),
+    # v10: scene_cuts 힌트 (7/21). exp17 승자 v5_reorder + {hint} 한 줄 = 순수 힌트 효과.
+    # 힌트는 build_scene_cut_hint_text가 채움 (관측 장면수 + near-duplicate 묶기 지시).
+    # scene_cuts는 커버리지 100%·holdout 37.8%p 격차 -> v6/v9 힌트(부실 재료)와 다른 재료.
+    "v10_scenecut_hint": (
+        "Look at the 4 images above labeled Image 1 to Image 4. Determine the correct "
+        "chronological order of these images to match the sentence below.\n"
+        "{hint}"
+        'Sentence: "{sentence}"\n'
+        "Provide the answer ONLY as a Python list of integers. Example: [1, 2, 3, 4]"
+    ),
 }
 
 

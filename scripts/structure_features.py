@@ -128,6 +128,77 @@ def hint_text(pairs):
     return f"Visual note: {body}\n"
 
 
+def load_owlvit_frames(path="./outputs/owlvit_clean/train.jsonl"):
+    """{Id: {"query": str, "frames": [frame_dict x4]}} — 제시 순서(Input_1~4) 기준.
+
+    frame_dict = {"status": "ok", "x", "y", "area"} 또는 {"status": "no_detection"/...}.
+    extract_owlvit_clean.py 산출물 (누수 없음)."""
+    import json
+    out = {}
+    if not os.path.exists(path):
+        return out
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            try:
+                r = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            out[r["Id"]] = {"query": r.get("query"), "frames": r["frames"]}
+    return out
+
+
+def build_owlvit_hint_text(rec, perm):
+    """OWL-ViT 좌표 -> 프롬프트 힌트 블록 (이번 변형의 제시 순서로 재매핑).
+
+    perm[j] = 이번 변형에서 Image j+1로 제시되는 원본(제시 순서) 0-based 인덱스.
+    rec["frames"][i] = 원본 제시 슬롯 i의 좌표. 따라서 Image j+1의 힌트 = frames[perm[j]].
+    검출 실패 프레임은 'not detected (ignore)'로 마스킹 — VLM이 스스로 무시하도록.
+    유효 좌표가 2개 미만이면 힌트 자체를 생략 (노이즈만 주입하지 않도록)."""
+    if rec is None:
+        return ""
+    frames, query = rec["frames"], rec.get("query") or "object"
+    lines, n_ok = [], 0
+    for j in range(4):
+        f = frames[perm[j]]
+        if f.get("status") == "ok":
+            n_ok += 1
+            lines.append(f"- Image {j + 1}: '{query}' at x={f['x']:.2f}, "
+                         f"size={f['area'] * 100:.0f}%")
+        else:
+            lines.append(f"- Image {j + 1}: '{query}' not detected (ignore)")
+    if n_ok < 2:                          # 유효 좌표 1개 이하면 순서 정보가 안 됨
+        return ""
+    return "Visual object positions (x: left=0, right=1; size: screen share):\n" + \
+        "\n".join(lines) + "\n"
+
+
+def load_scene_cuts(path=CLIP_TRAIN_PATH):
+    """{Id: scene_cuts(0~3)} — CLIP 장면 전환 수 (전체 프레임 속성, 증강 불변).
+
+    holdout 실측 정확도: cuts0 31% < cuts1 54% < cuts2 64% < cuts3 69% (37.8%p 격차).
+    커버리지 100%, 결측 0 — 좌표 힌트(검출률 32%)와 달리 모든 샘플에 완전한 값."""
+    import pandas as pd
+    df = pd.read_csv(path)
+    return dict(zip(df["Id"], df["predicted_scene_cuts"].astype(int)))
+
+
+def build_scene_cut_hint_text(n_cuts):
+    """scene_cuts -> 프롬프트 힌트 한 줄. 전체 장면 개수라 perm 재매핑 불필요(불변).
+
+    관측 사실 + 활용 지시(near-duplicate 묶기)만. 순서 방향은 주장하지 않는다."""
+    if n_cuts is None:
+        return ""
+    n_scenes = int(n_cuts) + 1                       # cuts=전환 수 -> 장면 수 = +1
+    if n_scenes >= 4:
+        return ("Visual note: all 4 images look clearly different from each other "
+                "(4 distinct scenes).\n")
+    if n_scenes <= 1:
+        return ("Visual note: all 4 images look nearly identical (1 continuous scene) "
+                "- the order depends on subtle changes within the same moment.\n")
+    return (f"Visual note: these 4 images form {n_scenes} distinct scenes - group "
+            f"near-duplicate frames into the same narrative moment.\n")
+
+
 def build_feature_table(sentences_df):
     """(Id, Sentence) DataFrame -> 피처 테이블.
 

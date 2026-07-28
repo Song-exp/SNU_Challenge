@@ -24,8 +24,12 @@ import ctypes
 import json
 import os
 
-# VRAM 단편화 완화 — 8GB에서 peak 6.5GB로 돌리는 구성이라 스파이크 여유가 얇다 (7/19 OOM 대응)
-os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
+# VRAM 위생 (7/19 OOM + 7/20 스필오버 크롤 대응):
+# - expandable_segments는 Windows 미지원(로드 시 경고, 무시됨)이라 제거
+# - garbage_collection_threshold: 예약(reserve)을 키우기 전에 캐시 블록을 회수 —
+#   예약이 공유(시스템 RAM) GPU 메모리까지 부풀어 PCIe 스래싱(클럭 352MHz)을 내던 사인
+os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF",
+                      "garbage_collection_threshold:0.8,max_split_size_mb:256")
 import random
 import time
 from datetime import datetime
@@ -57,14 +61,49 @@ def chrono_image_numbers(answer):
     return c
 
 
-def build_training_items(df, image_dir, aug_mult, rng, aug_weights=None, clip_pairs=None):
+def _hard_perm_candidates(rng, seen, sim_pairs, files, time_files, n_try=16):
+    """CLIP 유사쌍의 제시 순서를 변형마다 뒤집는 순열을 우선 고른다 (--hard-shuffle).
+
+    근거(7/20 오답 해부): 전 유형의 주 오답 모드가 '쌍교환'(비슷한 두 프레임의 선후 혼동).
+    유사쌍이 변형마다 다른 순서로 제시되면, 제시 위치를 외워서는 맞힐 수 없고
+    프레임 내용으로만 판별해야 한다 -> 그 판별 능력에 그래디언트가 집중된다.
+
+    ⚠️ identity 배제는 '순열'이 아니라 '타깃' 기준이어야 한다 — 타깃 [1,2,3,4]는
+    제시 순서가 시간순과 일치할 때 나오고, 이는 원본 정답에 따라 달라진다
+    (순열만 보고 걸렀다가 identity 타깃이 그대로 남는 버그를 7/21 실측으로 확인).
+    """
+    best, best_score = None, -1
+    for _ in range(n_try):
+        cand = list(range(4))
+        rng.shuffle(cand)
+        if tuple(cand) in seen:
+            continue
+        shown = [files[j] for j in cand]
+        if shown == time_files:                  # 타깃이 [1,2,3,4] = identity 지름길 강화
+            continue
+        pos = {orig: slot for slot, orig in enumerate(cand)}   # 원본 슬롯 -> 제시 슬롯
+        # 유사쌍이 제시 순서에서 뒤집힌 개수 + 전체 변위 (동점 시 더 많이 섞인 쪽)
+        score = sum(1 for a, b in sim_pairs if pos[a - 1] > pos[b - 1])
+        score = score * 10 + sum(abs(pos[i] - i) for i in range(4))
+        if score > best_score:
+            best, best_score = cand, score
+    return best
+
+
+def build_training_items(df, image_dir, aug_mult, rng, aug_weights=None, clip_pairs=None,
+                         loss_weights=None, hard_shuffle=False, inject_hint=True,
+                         owlvit_frames=None, scene_cuts=None):
     """각 샘플을 aug_mult개의 (제시 순서 변형, 시간순 라벨) 학습 항목으로 확장한다.
 
     aug_weights: {Id: 배수} — 지정된 Id는 해당 배수로, 나머지는 aug_mult로 (타깃 증강용).
-    clip_pairs: {Id: [(a,b),...]} — 힌트 프롬프트용 CLIP 유사쌍 (원본 제시 순서 기준).
-                변형마다 제시 순서로 재매핑되어 item["hint"]에 저장된다.
+    clip_pairs: {Id: [(a,b),...]} — CLIP 유사쌍 (원본 제시 순서 기준 1-based).
+                힌트 프롬프트용이면 변형마다 재매핑되어 item["hint"]에 저장되고,
+                hard_shuffle이면 순열 선택 기준으로도 쓰인다.
+    loss_weights: {Id: 가중} — item["loss_weight"]로 실려 학습 루프에서 손실에 곱해진다.
+    hard_shuffle: 무작위 순열 대신 유사쌍을 뒤집는 순열 우선 (_hard_perm_candidates).
     """
-    from structure_features import hint_text, remap_pairs
+    from structure_features import (hint_text, remap_pairs, build_owlvit_hint_text,
+                                     build_scene_cut_hint_text)
     items = []
     for _, row in df.iterrows():
         mult = aug_weights.get(row["Id"], aug_mult) if aug_weights else aug_mult
@@ -72,23 +111,32 @@ def build_training_items(df, image_dir, aug_mult, rng, aug_weights=None, clip_pa
         answer = ast.literal_eval(row["Answer"])
         chrono = chrono_image_numbers(answer)             # 시간순 이미지 번호 (원본 제시 기준)
         time_files = [files[n - 1] for n in chrono]       # 시간순 파일 목록 (변형 불변)
+        sim_pairs = (clip_pairs or {}).get(row["Id"], [])
 
         seen = set()
         for v in range(mult):
             if v == 0:
                 perm = list(range(4))                      # 변형 0 = 원본 제시 순서
             else:
-                perm = list(range(4))
-                for _ in range(10):                        # 이미 만든 변형과 중복 회피 (최선 노력)
-                    rng.shuffle(perm)
-                    if tuple(perm) not in seen:
-                        break
+                perm = None
+                if hard_shuffle:
+                    perm = _hard_perm_candidates(rng, seen, sim_pairs, files, time_files)
+                if perm is None:
+                    perm = list(range(4))
+                    for _ in range(10):                    # 이미 만든 변형과 중복 회피 (최선 노력)
+                        rng.shuffle(perm)
+                        if tuple(perm) not in seen:
+                            break
             seen.add(tuple(perm))
 
             shown_files = [files[j] for j in perm]         # 이번 변형에서 Image 1~4로 제시되는 파일
             target = [shown_files.index(f) + 1 for f in time_files]  # 시간순 -> 제시 라벨
             hint = ""
-            if clip_pairs is not None:                     # 쌍 번호를 이번 변형의 제시 순서로 변환
+            if inject_hint and scene_cuts is not None:      # scene_cuts 힌트 (전체 속성, 불변)
+                hint = build_scene_cut_hint_text(scene_cuts.get(row["Id"]))
+            elif inject_hint and owlvit_frames is not None:  # OWL-ViT 좌표 힌트 (제시 순서 재매핑)
+                hint = build_owlvit_hint_text(owlvit_frames.get(row["Id"]), perm)
+            elif inject_hint and clip_pairs is not None:    # CLIP 유사쌍 힌트
                 hint = hint_text(remap_pairs(clip_pairs.get(row["Id"], []), perm))
             items.append({
                 "id": row["Id"],
@@ -96,6 +144,7 @@ def build_training_items(df, image_dir, aug_mult, rng, aug_weights=None, clip_pa
                 "paths": [os.path.join(image_dir, row["Id"], f) for f in shown_files],
                 "target_text": str(target),                # 예: "[3, 1, 4, 2]" (eval 파서와 동일 형식)
                 "hint": hint,
+                "loss_weight": (loss_weights or {}).get(row["Id"], 1.0),
             })
     return items
 
@@ -139,6 +188,14 @@ def main():
     parser.add_argument("--aug-mult", type=int, default=2, help="샘플당 제시 순서 변형 수 (원본 포함)")
     parser.add_argument("--aug-weights", default="",
                         help="Id별 증강 배수 CSV (열: Id,aug_mult) — 명시된 Id는 그 배수, 나머지는 --aug-mult")
+    parser.add_argument("--loss-weights", default="",
+                        help="Id별 손실 가중 CSV (열: Id,loss_weight) — 증강 복제 없이 그래디언트 기여만 조절")
+    parser.add_argument("--hard-shuffle", action="store_true",
+                        help="증강 순열을 CLIP 유사쌍 기준으로 선택 (유사쌍 순서를 뒤집는 변형 우선, identity 제외)")
+    parser.add_argument("--owlvit-hints", default="",
+                        help="OWL-ViT 좌표 힌트 jsonl 경로 (v9류 프롬프트와 함께 — 없으면 CLIP 유사쌍 힌트)")
+    parser.add_argument("--scene-cut-hints", action="store_true",
+                        help="scene_cuts 힌트 주입 (v10류 프롬프트와 함께 — 커버리지 100 퍼센트, 최우선 소스)")
     parser.add_argument("--epochs", type=int, default=1)
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--lora-r", type=int, default=16)
@@ -149,6 +206,10 @@ def main():
                         help="프롬프트 이름 (평가 시에도 같은 이름 필수)")
     parser.add_argument("--grad-accum", type=int, default=16)
     parser.add_argument("--max-pixels", type=int, default=640 * 480, help="eval과 동일 기본값")
+    parser.add_argument("--mem-fraction", type=float, default=0.85,
+                        help="GPU 메모리 할당자 캡 (4B=0.85, 8B는 0.95+ 필요 — 스필 위험 감수)")
+    parser.add_argument("--skip-kbit-upcast", action="store_true",
+                        help="8B용: kbit 준비의 fp32 업캐스트(+2.3GB) 생략 (VRAM 절약, 안정성 스모크 확인)")
     parser.add_argument("--warmup-ratio", type=float, default=0.03)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--max-samples", type=int, default=0, help="기반 샘플 수 제한 (0=전체, 스모크용)")
@@ -172,6 +233,11 @@ def main():
     from qwen_vl_utils import process_vision_info
 
     assert torch.cuda.is_available(), "GPU 필요"
+    # 할당자 하드 캡: 전용 VRAM의 N%까지만 (8.55GB x 0.85 ~= 7.3GB = 4B 실사용 한계).
+    # 이 상한을 넘는 요구는 드라이버가 공유 메모리로 스필(→ 전체 크롤)하는 대신
+    # OOM 예외가 되고, 학습 루프의 OOM 스킵이 해당 샘플만 건너뛴다 (7/20 진단).
+    # 8B는 로드+kbit 준비에 여유가 필요 → --mem-fraction 으로 상향 (스필 위험 감수).
+    torch.cuda.set_per_process_memory_fraction(args.mem_fraction)
     keep_system_awake()
     random.seed(args.seed)
     torch.manual_seed(args.seed)
@@ -197,11 +263,45 @@ def main():
         dist = ", ".join(f"x{m}: {n}개" for m, n in counts.items())
         print(f"가변 증강: {args.aug_weights} ({len(aug_weights)}개 Id | {dist} | 미지정은 x{args.aug_mult})", flush=True)
     clip_pairs = None
+    owlvit_frames = None
+    scene_cuts = None
     if prompt_registry.needs_hint(args.prompt):
+        if args.scene_cut_hints:
+            from structure_features import load_scene_cuts
+            scene_cuts = load_scene_cuts()
+            print(f"힌트 주입: scene_cuts {len(scene_cuts)}개 Id (커버리지 100%, 프롬프트 {args.prompt})",
+                  flush=True)
+        elif args.owlvit_hints:
+            from structure_features import load_owlvit_frames
+            owlvit_frames = load_owlvit_frames(args.owlvit_hints)
+            n_ok = sum(1 for v in owlvit_frames.values()
+                       if sum(f.get("status") == "ok" for f in v["frames"]) >= 2)
+            print(f"힌트 주입: OWL-ViT 좌표 {len(owlvit_frames)}개 Id "
+                  f"(유효 힌트 {n_ok}개, 프롬프트 {args.prompt})", flush=True)
+        else:
+            from structure_features import load_clip_pairs
+            clip_pairs = load_clip_pairs()
+            print(f"힌트 주입: CLIP 유사쌍 {len(clip_pairs)}개 Id (프롬프트 {args.prompt})", flush=True)
+    elif args.hard_shuffle:
         from structure_features import load_clip_pairs
-        clip_pairs = load_clip_pairs()
-        print(f"힌트 주입: CLIP 유사쌍 {len(clip_pairs)}개 Id (프롬프트 {args.prompt})", flush=True)
-    items = build_training_items(train_df, image_dir, args.aug_mult, rng, aug_weights, clip_pairs)
+        clip_pairs = load_clip_pairs()          # 힌트 주입 없이 순열 선택에만 사용
+        n_with = sum(1 for v in clip_pairs.values() if v)
+        print(f"어려운 셔플: CLIP 유사쌍 보유 {n_with}/{len(clip_pairs)}개 Id "
+              f"(유사쌍 없는 샘플은 기존 무작위 셔플)", flush=True)
+
+    loss_weights = None
+    if args.loss_weights:
+        ldf = pd.read_csv(args.loss_weights)
+        loss_weights = dict(zip(ldf["Id"], ldf["loss_weight"].astype(float)))
+        counts = ldf["loss_weight"].round(2).value_counts().sort_index()
+        dist = ", ".join(f"w{w}: {n}개" for w, n in counts.items())
+        print(f"손실 가중: {args.loss_weights} ({len(loss_weights)}개 Id | {dist} | 미지정은 w1.0)",
+              flush=True)
+
+    items = build_training_items(train_df, image_dir, args.aug_mult, rng, aug_weights, clip_pairs,
+                                 loss_weights, args.hard_shuffle,
+                                 inject_hint=prompt_registry.needs_hint(args.prompt),
+                                 owlvit_frames=owlvit_frames, scene_cuts=scene_cuts)
     rng.shuffle(items)
     print(f"기반 {len(train_df)}개 -> 학습 항목 {len(items)}개 (기본 증강 x{args.aug_mult})", flush=True)
 
@@ -227,10 +327,14 @@ def main():
     )
     processor = AutoProcessor.from_pretrained(args.model, max_pixels=args.max_pixels, local_files_only=True)
 
-    if args.load_4bit:
+    if args.load_4bit and not args.skip_kbit_upcast:
         from peft import prepare_model_for_kbit_training
         model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=True)
     else:
+        # 8B가 8GB에 안 들어갈 때: kbit 준비의 fp32 업캐스트(+2.3GB)를 건너뛰고
+        # gradient checkpointing만 직접 켠다 (layernorm fp32 안정화 포기, 스모크로 수렴 확인 필요)
+        if args.load_4bit:
+            print("⚠️ kbit fp32 업캐스트 생략 (VRAM 절약) — 학습 안정성 스모크로 확인", flush=True)
         model.gradient_checkpointing_enable()
         model.enable_input_require_grads()
     model.config.use_cache = False
@@ -298,7 +402,9 @@ def main():
                 inputs = loss = None
                 try:
                     inputs = encode(item).to(model.device)
-                    loss = model(**inputs).loss / args.grad_accum
+                    # 샘플별 손실 가중 (--loss-weights): 증강 복제와 달리 스텝 수를 늘리지 않고
+                    # 그래디언트 기여만 조절한다. 미지정 샘플은 1.0.
+                    loss = model(**inputs).loss * item.get("loss_weight", 1.0) / args.grad_accum
                     loss.backward()
                 except Exception as e:
                     if "out of memory" not in str(e).lower():
@@ -328,8 +434,9 @@ def main():
                             "lr": scheduler.get_last_lr()[0],
                             "sec_per_item": round(elapsed / micro_step, 2),
                             "peak_vram_gb": round(torch.cuda.max_memory_allocated() / 1e9, 2),
-                            # reserved-allocated 격차가 벌어지면 단편화 진행 신호 (7/19 OOM 진단용)
-                            "reserved_vram_gb": round(torch.cuda.max_memory_reserved() / 1e9, 2),
+                            # 현재 예약량 (최대값이 아님) — allocated와의 격차 = 단편화/캐시 팽창.
+                            # 캡(7.3GB) 근처에서 계속 놀면 GC가 일하고 있다는 뜻 (7/20 스필 진단)
+                            "reserved_vram_gb": round(torch.cuda.memory_reserved() / 1e9, 2),
                             "elapsed_min": round(elapsed / 60, 1),
                         }
                         log_rows.append(row)

@@ -124,18 +124,28 @@ def main():
     image_dir = os.path.join(args.data_dir, "train")
     clip_pairs = None
     owlvit_features = None
+    scene_cuts = None
     if prompt_registry.needs_hint(args.prompt):
-        from structure_features import load_clip_pairs, load_owlvit_features, build_comprehensive_hints
-        clip_pairs = load_clip_pairs()
-        owlvit_features = load_owlvit_features()
-        print(f"힌트 주입: CLIP 유사쌍 로드 ({len(clip_pairs) if clip_pairs else 0}개 Id), OWL-ViT ({len(owlvit_features) if owlvit_features is not None else 0}개 Id)", flush=True)
+        if args.prompt.startswith("v10"):
+            # scene_cuts 힌트 (정답 무관, 누수 없음) — 아래 CLIP/OWL-ViT 경로(정답 역산)를 우회
+            from structure_features import load_scene_cuts
+            scene_cuts = load_scene_cuts()
+            print(f"힌트 주입: scene_cuts {len(scene_cuts)}개 Id (커버리지 100 퍼센트)", flush=True)
+        else:
+            from structure_features import load_clip_pairs, load_owlvit_features, build_comprehensive_hints
+            clip_pairs = load_clip_pairs()
+            owlvit_features = load_owlvit_features()
+            print(f"힌트 주입: CLIP 유사쌍 로드 ({len(clip_pairs) if clip_pairs else 0}개 Id), OWL-ViT ({len(owlvit_features) if owlvit_features is not None else 0}개 Id)", flush=True)
     torch.cuda.reset_peak_memory_stats()
     records = []
     t_start = time.time()
 
     for _, row in tqdm(eval_df.iterrows(), total=len(eval_df)):
         hint = ""
-        if clip_pairs is not None or owlvit_features is not None:
+        if scene_cuts is not None:
+            from structure_features import build_scene_cut_hint_text
+            hint = build_scene_cut_hint_text(scene_cuts.get(row["Id"]))
+        elif clip_pairs is not None or owlvit_features is not None:
             # Reconstruct chronological image order from ground truth Answer
             gt = ast.literal_eval(row["Answer"])
             chrono = [0] * 4
