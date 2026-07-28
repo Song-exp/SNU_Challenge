@@ -62,6 +62,13 @@ scripts/terminal_syntax_inspector.py
 run_inspector.bat
 
 run_gui_inspector.bat
-scripts/gui_syntax_inspector.py
-
 train___Ϸ_.csv
+
+# Binary assets and archives
+*.zip
+*.xlsx
+*.png
+*.jpg
+*.jpeg
+*.gif
+
