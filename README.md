@@ -1,6 +1,6 @@
 # SNU AI Challenge — Text-guided Video Frame Ordering
 
-**최종 성적**: Private 0.86991 (1위) / Public 0.88307 (팀 최고 Public 0.88830)  
+**최종 성적**: Private 0.86991 (최종 130팀 중 25위) / Public 0.88307 (팀 최고 Public 0.88830)  
 **최종 시스템**: Qwen3-VL-8B (NF4 4bit QLoRA) + v5_reorder + 문장 4유형 차등 증강 + 하드 셔플 + 우도 K=4 순열 TTA
 
 ---
